@@ -83,16 +83,16 @@ So upgrades are one command: `project-loop install --yes`. Inspect with `project
 clear with `project-loop config --reset`, or bypass saving entirely with `--no-save`.
 
 This file holds preferences only. Loop state is never centralised — it lives in each project's
-`.loop/` directory, which is what lets a loop survive context compaction, a session restart, or a
+`loop-project/` directory, which is what lets a loop survive context compaction, a session restart, or a
 switch to a different agent entirely.
 
 ### Other commands
 
 ```bash
-project-loop status      # every place it is installed, plus .loop state here
+project-loop status      # every place it is installed, plus loop-project state here
 project-loop doctor      # python3, git, payload integrity, install paths, git work tree
-project-loop init        # scaffold .loop/ in the current directory
-project-loop uninstall   # remove skill + subagents, never touches .loop/
+project-loop init        # scaffold loop-project/ in the current directory
+project-loop uninstall   # remove skill + subagents, never touches loop-project/
 ```
 
 `project-loop doctor` is the fastest way to answer "why isn't this working" — it checks the
@@ -233,7 +233,7 @@ Uninstall removes the skill directory and the five named subagent files. It deli
 adapter files alone — your `AGENTS.md` and Cursor rules may have been edited since, and silently
 deleting an edited file is worse than leaving a stale one.
 
-`.loop/` directories are left alone. They are project state and part of your audit trail, not
+`loop-project/` directories are left alone. They are project state and part of your audit trail, not
 installed files — delete them yourself if you want them gone.
 
 ---
@@ -286,9 +286,9 @@ stub is worse than no gate.
 
 **`WARNING: dod.md changed after it was frozen at G0`.** Something edited the Definition of Done
 after approval. That is exactly what the hash is for. Either restore the file, or record a human
-decision in `.loop/ledger.md` and re-freeze deliberately.
+decision in `loop-project/ledger.md` and re-freeze deliberately.
 
-**Everything is `BLOCKED`.** Read `.loop/ledger.md` — a stop condition fired and the reason is
+**Everything is `BLOCKED`.** Read `loop-project/ledger.md` — a stop condition fired and the reason is
 written there with the decision that is needed. `BLOCKED` is a success state: the loop detected
 that more autonomy would destroy value and handed back control. Make the call, record it, and
 continue.

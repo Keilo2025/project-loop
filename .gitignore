@@ -11,4 +11,4 @@ npm-debug.log*
 # Zero dependencies means there is nothing for a lockfile to pin.
 package-lock.json
 
-# .loop/ is deliberately NOT ignored — it is the audit trail and it should be committed.
+# loop-project/ is deliberately NOT ignored — it is the audit trail and it should be committed.

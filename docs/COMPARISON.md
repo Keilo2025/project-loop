@@ -113,7 +113,7 @@ right. Project Loop costs more per feature. It buys a verdict someone else can t
 Yes, and it is often sensible. Two patterns that work:
 
 **Spec Kit or Kiro for Phases 0–1, Project Loop for Phases 2–3.** Keep the specification workflow
-you already like, and adopt the verification stage. Point `.loop/1-spec/interfaces.md` at their
+you already like, and adopt the verification stage. Point `loop-project/1-spec/interfaces.md` at their
 output, or symlink it.
 
 **Project Loop as the verification layer over any pipeline.** Even without the planning phases,

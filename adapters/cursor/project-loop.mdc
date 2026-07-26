@@ -1,5 +1,5 @@
 ---
-description: Project Loop — closed-loop build system with a Judge that holds the exit gate. Pull this in for any multi-step build, feature, MVP, or when a .loop/ directory exists in the workspace.
+description: Project Loop — closed-loop build system with a Judge that holds the exit gate. Pull this in for any multi-step build, feature, MVP, or when a loop-project/ directory exists in the workspace.
 alwaysApply: false
 ---
 

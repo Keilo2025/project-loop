@@ -7,10 +7,10 @@ Out of scope:
 - 
 
 ## Read-set
-- .loop/2-build/tasks/TASK-###.md
-- .loop/1-spec/interfaces.md
-- .loop/1-spec/conventions.md
-- .loop/1-spec/security.md (rules SEC-xx, SEC-yy only)
+- loop-project/2-build/tasks/TASK-###.md
+- loop-project/1-spec/interfaces.md
+- loop-project/1-spec/conventions.md
+- loop-project/1-spec/security.md (rules SEC-xx, SEC-yy only)
 - <source files being modified>
 
 ## Write-set

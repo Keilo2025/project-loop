@@ -151,7 +151,7 @@ The Worker searches first:
 
 ```
 $ loop.py reuse "authorisation guard"
-registry (.loop/1-spec/conventions.md)
+registry (loop-project/1-spec/conventions.md)
   | requireOwner | src/auth/guards.ts | Per-resource ownership guard | TASK-002 | all routes |
 ```
 
@@ -224,11 +224,11 @@ what was deliberately not built, where the evidence lives, and the residual risk
 
 ## Reading the state
 
-Everything is in `.loop/`, in Markdown and one JSON file. Commit it.
+Everything is in `loop-project/`, in Markdown and one JSON file. Commit it.
 
 ```bash
 loop.py status          # phase, cursor, gates, open tasks, DoD drift warning
-cat .loop/ledger.md     # every decision, deviation and escalation, in order
+cat loop-project/ledger.md     # every decision, deviation and escalation, in order
 ```
 
 A build can start in Claude Code and finish in Codex, or be picked up by a colleague weeks later,

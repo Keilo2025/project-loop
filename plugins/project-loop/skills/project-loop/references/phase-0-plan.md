@@ -1,6 +1,6 @@
 # Phase 0 — Plan
 
-Role: **Planner**. Output: `.loop/0-plan/`. Exit: gate **G0**, which requires a human.
+Role: **Planner**. Output: `loop-project/0-plan/`. Exit: gate **G0**, which requires a human.
 
 Phase 0 exists to make the rest of the loop cheap. Every ambiguity left here becomes a rework
 cycle later, and rework cycles cost roughly ten times what a clarifying question costs. The
@@ -41,7 +41,7 @@ regime, whether this replaces something existing, and what "good enough to ship"
 
 ## 0.2 Business requirements → `brd.md`
 
-The BRD answers *why*, in the language of outcomes, not features. `loop.py init` seeds this file in `.loop/0-plan/`.
+The BRD answers *why*, in the language of outcomes, not features. `loop.py init` seeds this file in `loop-project/0-plan/`.
 
 Each business requirement is `BR-###` and must state:
 
@@ -59,7 +59,7 @@ part of a BRD, because it is the only place scope gets actively closed. Write it
 
 ## 0.3 Product specification → `prd.md`
 
-The PRD answers *what the system does*. `loop.py init` seeds this file in `.loop/0-plan/`.
+The PRD answers *what the system does*. `loop.py init` seeds this file in `loop-project/0-plan/`.
 
 Write functional requirements in **EARS** notation. EARS constrains natural language into six
 patterns, each of which collapses to a single testable claim — which is exactly what a Judge
@@ -96,7 +96,7 @@ not.
 
 ## 0.4 Milestones, dates, ownership → `plan.md`
 
-`loop.py init` seeds this file in `.loop/0-plan/`.
+`loop.py init` seeds this file in `loop-project/0-plan/`.
 
 **Milestones.** Each milestone is a demonstrable state of the system, not a period of activity.
 "Auth works end to end including password reset" is a milestone. "Auth development" is a calendar
@@ -120,7 +120,7 @@ concurrency bugs between threads, and they are debugged the same painful way.
 
 ## 0.5 Definition of Done and acceptance checklist → `dod.md`
 
-This is the contract the Judge enforces. `loop.py init` seeds this file in `.loop/0-plan/`.
+This is the contract the Judge enforces. `loop.py init` seeds this file in `loop-project/0-plan/`.
 
 Two parts:
 

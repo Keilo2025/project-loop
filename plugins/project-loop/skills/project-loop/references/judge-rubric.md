@@ -13,7 +13,7 @@ confidence.
 
 ## Check 1 — Evidence completeness
 
-`.loop/2-build/reports/TASK-###.report.md` exists and validates against
+`loop-project/2-build/reports/TASK-###.report.md` exists and validates against
 `references/report-schema.md`.
 
 Fail → `REWORK`, order: "Produce a schema-valid REPORT." Do not open the diff. Do not infer what

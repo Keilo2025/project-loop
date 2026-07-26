@@ -154,18 +154,18 @@ test('reinstall over an existing install succeeds and reports "updated"', ({ fak
   assert.ok(r.stdout.includes('updated'), 'second install should say updated');
 });
 
-test('uninstall removes skill and subagents, leaves .loop alone', ({ fakeHome, project }) => {
+test('uninstall removes skill and subagents, leaves loop-project alone', ({ fakeHome, project }) => {
   const env = { HOME: fakeHome, USERPROFILE: fakeHome };
   run(['install', '--target', 'claude', '--scope', 'project', '--project', project, '--yes', '--no-save'], env);
 
-  const loopDir = path.join(project, '.loop');
+  const loopDir = path.join(project, 'loop-project');
   fs.mkdirSync(loopDir, { recursive: true });
   fs.writeFileSync(path.join(loopDir, 'loop.json'), JSON.stringify({ phase: 2, status: 'OPEN' }));
 
   const r = run(['uninstall', '--target', 'claude', '--scope', 'project', '--project', project, '--yes'], env);
   assert.strictEqual(r.status, 0, r.stderr);
   assert.ok(!fs.existsSync(path.join(project, '.claude', 'skills', 'project-loop')), 'skill not removed');
-  assert.ok(fs.existsSync(path.join(loopDir, 'loop.json')), '.loop was deleted — it must never be');
+  assert.ok(fs.existsSync(path.join(loopDir, 'loop.json')), 'loop-project was deleted — it must never be');
 });
 
 test('uninstall on a clean machine is a no-op, not an error', ({ fakeHome }) => {
@@ -182,11 +182,11 @@ test('status reports "not installed" on a clean machine', ({ fakeHome, project }
   assert.ok(r.stdout.includes('no loop found'), 'should report no loop state');
 });
 
-test('status finds an install and reads .loop state', ({ fakeHome, project }) => {
+test('status finds an install and reads loop-project state', ({ fakeHome, project }) => {
   const env = { HOME: fakeHome, USERPROFILE: fakeHome };
   run(['install', '--target', 'claude', '--scope', 'user', '--yes', '--no-save'], env);
-  fs.mkdirSync(path.join(project, '.loop'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.loop', 'loop.json'),
+  fs.mkdirSync(path.join(project, 'loop-project'), { recursive: true });
+  fs.writeFileSync(path.join(project, 'loop-project', 'loop.json'),
     JSON.stringify({ phase: 3, status: 'BLOCKED', cursor: 'TASK-007' }));
 
   const r = run(['status', '--project', project], env);

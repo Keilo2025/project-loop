@@ -1,7 +1,7 @@
 # Phase 2 — Build
 
 Roles: **Architect** cuts tasks, **Worker** executes them. Output: source code plus
-`.loop/2-build/`. Exit: gate **G2**, though in practice Phase 2 and Phase 3 interleave per task.
+`loop-project/2-build/`. Exit: gate **G2**, though in practice Phase 2 and Phase 3 interleave per task.
 
 The build order is fixed and it is not negotiable: **foundation first, then experience.** Building
 a beautiful screen on top of an unsettled data model produces work that has to be thrown away, and
@@ -102,7 +102,7 @@ refactor rather than a move.
 
 ## 2.3 The REPORT
 
-Every task produces `.loop/2-build/reports/TASK-###.report.md`. **No REPORT means automatic
+Every task produces `loop-project/2-build/reports/TASK-###.report.md`. **No REPORT means automatic
 REWORK** — the Judge does not open the code to compensate for a missing report, because doing so
 would convert the Judge into a reviewer of intentions rather than evidence.
 

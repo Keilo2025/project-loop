@@ -14,7 +14,7 @@ discipline still catches most of what isolation would have caught.
 
 ## Planner
 
-**Owns:** `.loop/0-plan/*`
+**Owns:** `loop-project/0-plan/*`
 **Reads:** the human's request, the existing repository if brownfield, the web where currency
 matters.
 **Produces:** `research.md`, `brd.md`, `prd.md`, `plan.md`, `dod.md`.
@@ -36,7 +36,7 @@ Brief:
 
 ## Architect
 
-**Owns:** `.loop/1-spec/*` including `conventions.md`, and the task cards in `.loop/2-build/tasks/`
+**Owns:** `loop-project/1-spec/*` including `conventions.md`, and the task cards in `loop-project/2-build/tasks/`
 **Reads:** `0-plan/prd.md`, `0-plan/dod.md`, `0-plan/research.md`.
 **Produces:** `architecture.md`, `interfaces.md`, `security.md`, `qa-strategy.md`,
 `design-contract.md`, and task cards.
@@ -100,7 +100,7 @@ Brief:
 
 ## Tester
 
-**Owns:** `.loop/3-verify/qa/*`
+**Owns:** `loop-project/3-verify/qa/*`
 **Reads:** the task card, the REPORT, `1-spec/qa-strategy.md`, the relevant acceptance rows, and
 the running system.
 **Produces:** `QA-###.md`.
@@ -125,7 +125,7 @@ Brief:
 
 ## Judge
 
-**Owns:** `.loop/3-verify/verdicts/*`, `.loop/3-verify/rework/*`, and the loop's exit gate.
+**Owns:** `loop-project/3-verify/verdicts/*`, `loop-project/3-verify/rework/*`, and the loop's exit gate.
 **Reads:** the task card, the REPORT, the QA report, the frozen DoD rows in scope, `git diff
 --stat`, and targeted diffs only where the rubric flags something.
 **Produces:** `V-###.md`, `R-###.md`, and the decision to close or continue the loop.

@@ -5,7 +5,7 @@
 Worth stating plainly, because you should not install an agent skill without knowing.
 
 - **`scripts/loop.py`** — one file, Python standard library only, no network access. It reads and
-  writes under `.loop/`, and shells out to `git` for `status` and `diff`. It reads files in your
+  writes under `loop-project/`, and shells out to `git` for `status` and `diff`. It reads files in your
   working tree during secret scanning, and prints file paths and line numbers on a match. It never
   prints the matched secret itself.
 - **`scripts/install.sh`** — copies the skill directory into your agent's skills path and the
@@ -45,7 +45,7 @@ Before installing any skill, including this one:
 
 The loop treats security as a blocking gate rather than advice. `references/security-contract.md`
 is a menu of rules — baseline application controls, plus additional rules for systems that embed
-an LLM or an agent — that the Architect instantiates per project in `.loop/1-spec/security.md`.
+an LLM or an agent — that the Architect instantiates per project in `loop-project/1-spec/security.md`.
 Each selected rule must carry a stated check, because a rule with no check is a wish. A Judge
 returns `REWORK` with Sev-1 on any failure, and a Sev-1 that recurs after being fixed escalates to
 `BLOCKED`.

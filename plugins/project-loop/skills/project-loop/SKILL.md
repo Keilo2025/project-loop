@@ -1,6 +1,6 @@
 ---
 name: project-loop
-description: A closed-loop, evidence-gated build system that takes a project from idea to verified completion across four phases (Plan, Spec, Build, Verify), where a Judge role holds the exit gate and issues rework orders until every acceptance criterion is met with evidence. Use this whenever someone wants to build, ship, rebuild, extend, or finish a software project, feature, MVP, app, API, or service and wants it done properly rather than vibe-coded. Trigger on "project loop", "run the loop", "build me a", "let's build", "ship this feature", "plan and build", "spec it then build it", "take this to done", "don't stop until it works", "keep going until it passes", "autonomous build", "agent loop", "QA this", "review my build", "issue rework", "definition of done", "acceptance criteria", or any request implying a multi-step build with tests, security, or a completion bar. Also use to resume an interrupted build whenever a `.loop/` directory exists in the workspace, and when adding a feature to an existing codebase. Prefer this over ad-hoc coding whenever the work is larger than a single-file edit.
+description: A closed-loop, evidence-gated build system that takes a project from idea to verified completion across four phases (Plan, Spec, Build, Verify), where a Judge role holds the exit gate and issues rework orders until every acceptance criterion is met with evidence. Use this whenever someone wants to build, ship, rebuild, extend, or finish a software project, feature, MVP, app, API, or service and wants it done properly rather than vibe-coded. Trigger on "project loop", "run the loop", "build me a", "let's build", "ship this feature", "plan and build", "spec it then build it", "take this to done", "don't stop until it works", "keep going until it passes", "autonomous build", "agent loop", "QA this", "review my build", "issue rework", "definition of done", "acceptance criteria", or any request implying a multi-step build with tests, security, or a completion bar. Also use to resume an interrupted build whenever a `loop-project/` directory exists in the workspace, and when adding a feature to an existing codebase. Prefer this over ad-hoc coding whenever the work is larger than a single-file edit.
 license: MIT
 ---
 
@@ -43,7 +43,7 @@ Resolve `scripts/loop.py` relative to this skill directory. In Claude Code you c
 | `status: PASS` | The loop is closed. Do not reopen it without an explicit new request. |
 
 Never reconstruct state by reading the whole repository or scrolling back through conversation.
-State lives in `.loop/loop.json`. That is deliberate: it survives context compaction, session
+State lives in `loop-project/loop.json`. That is deliberate: it survives context compaction, session
 restarts, and a switch to a different agent entirely.
 
 ## Artifact tree
@@ -51,7 +51,7 @@ restarts, and a switch to a different agent entirely.
 The loop writes and reads exactly this. Nothing else is loop state.
 
 ```
-.loop/
+loop-project/
 ├── loop.json              # machine state: phase, cursor, cycle counts, verdicts
 ├── ledger.md              # append-only: decisions, deviations, escalations
 ├── 0-plan/
@@ -138,7 +138,7 @@ another; task 9 rebuilds the date formatter task 4 already wrote. Every task pas
 acceptance criteria and the result is still a mess, because nothing in a per-task contract can see
 across tasks.
 
-The fix is a memory file every Worker reads: `.loop/1-spec/conventions.md`. Three sections —
+The fix is a memory file every Worker reads: `loop-project/1-spec/conventions.md`. Three sections —
 **conventions** (the decisions different Workers would otherwise make differently), a **reuse
 registry** (append-only, one line per reusable unit, written the moment it is created), and
 **bound decisions** (constraints from earlier tasks that later ones may not quietly break).

@@ -4,7 +4,7 @@ Project Loop is written against the Agent Skills open standard, so the same `SKI
 `references/` load in any tool that implements it. What differs between tools is discovery paths,
 whether real subagents exist, and how the human confirms a gate.
 
-The loop's state lives entirely in `.loop/`, which means a build can be started in one agent and
+The loop's state lives entirely in `loop-project/`, which means a build can be started in one agent and
 finished in another. That is worth knowing before you commit to a tool for a long project.
 
 ---
@@ -51,7 +51,7 @@ criterion — and those are found by the script, not by the model's independence
 
 ## Human gates
 
-By default only G0 requires a human. Configure this in `.loop/loop.json`:
+By default only G0 requires a human. Configure this in `loop-project/loop.json`:
 
 ```json
 { "human_gates": ["g0"] }
@@ -103,9 +103,9 @@ real, and Workers do most of the turns.
 
 ## Moving a loop between agents
 
-`.loop/` is plain Markdown and one JSON file. To hand a build over:
+`loop-project/` is plain Markdown and one JSON file. To hand a build over:
 
-1. Commit `.loop/` along with the code
+1. Commit `loop-project/` along with the code
 2. Install the skill in the new agent
 3. Run `loop.py status` and continue from the reported cursor
 

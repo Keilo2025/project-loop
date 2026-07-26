@@ -14,14 +14,14 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Target selection across Claude Code, OpenAI Codex, Cursor, and a `generic` target that takes a
   custom skills directory for any other Agent Skills reader
 - Saved defaults in `~/.project-loop/config.json`, so upgrades are `project-loop install --yes`.
-  Preferences only — loop state stays in each project's `.loop/`, never centralised
+  Preferences only — loop state stays in each project's `loop-project/`, never centralised
 - `project-loop status` — every install location plus the current directory's loop state
 - `project-loop doctor` — python3, git, payload integrity, install paths, git work tree
 - `project-loop config [--reset]` — view or clear saved defaults
 - `project-loop init [--brownfield]` — delegates to `loop.py init` at whichever path is installed
 - `--dry-run` on install and uninstall, printing every path that would be touched
 - 23 installer tests running against throwaway `HOME` and project directories, covering scope
-  isolation, adapter non-clobbering, `.loop/` preservation on uninstall, and config recovery
+  isolation, adapter non-clobbering, `loop-project/` preservation on uninstall, and config recovery
 - `scripts/flatten-repo.sh` — one-time cleanup of the nested duplicate working tree
 
 ### Changed
@@ -34,7 +34,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a poor place to introduce a supply chain. Node 18 or later
 - `scripts/install.sh` is unchanged and still supported. It needs no Node, which matters when
   installing onto a machine that does not have it
-- Uninstall never removes adapter files (`AGENTS.md`, Cursor rules) or `.loop/` directories
+- Uninstall never removes adapter files (`AGENTS.md`, Cursor rules) or `loop-project/` directories
 
 ## [1.0.0] — 2026-07-26
 

@@ -1,6 +1,6 @@
 # Phase 1 — Spec
 
-Role: **Architect**. Output: `.loop/1-spec/`. Exit: gate **G1**.
+Role: **Architect**. Output: `loop-project/1-spec/`. Exit: gate **G1**.
 
 Phase 1 turns *what the system does* into *how it is put together and how we will know it works*.
 The test of a good Phase 1 is simple: a Worker with no memory of this conversation should be able
@@ -14,7 +14,7 @@ business rationale does not change component boundaries, and it costs tokens.
 
 ## 1.1 Architecture → `architecture.md`
 
-`loop.py init` seeds this file in `.loop/1-spec/`.
+`loop.py init` seeds this file in `loop-project/1-spec/`.
 
 **Components.** Name each one, state its single responsibility in one sentence, and list what it
 owns. If a component's responsibility needs "and" to describe, split it.
@@ -95,7 +95,7 @@ a browser is an untrusted input at that point regardless of where it came from.
 
 ## 1.4 QA strategy → `qa-strategy.md`
 
-`loop.py init` seeds this file in `.loop/1-spec/`. This defines what counts as proof, before anyone has an
+`loop.py init` seeds this file in `loop-project/1-spec/`. This defines what counts as proof, before anyone has an
 incentive to lower the bar.
 
 - **Layers and their jobs.** Unit for logic and edge cases; integration for contracts between

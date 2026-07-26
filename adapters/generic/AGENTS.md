@@ -11,7 +11,7 @@ python3 <skill-install-path>/scripts/loop.py status
 ```
 
 `no loop found` means start at Phase 0. Any other output means resume at the reported cursor.
-State lives in `.loop/loop.json`, not in the conversation.
+State lives in `loop-project/loop.json`, not in the conversation.
 
 ## Non-negotiable
 
@@ -24,7 +24,7 @@ State lives in `.loop/loop.json`, not in the conversation.
   treated as Sev-1.
 - Never edit files outside a task's declared write-set. Request a scope amendment.
 - The Definition of Done is frozen at G0. Changing it afterwards is scope drift and requires a
-  human decision recorded in `.loop/ledger.md`.
+  human decision recorded in `loop-project/ledger.md`.
 
 ## Roles
 

@@ -7,7 +7,7 @@ cost model tokens, and a script asserts them more reliably.
 
 Python 3.8+, standard library only, no network access.
 
-  loop.py init [--brownfield]      scaffold .loop/
+  loop.py init [--brownfield]      scaffold loop-project/
   loop.py status                   compact state summary (run this first, every session)
   loop.py task new "<title>"       create the next TASK card
   loop.py task list                list tasks and their state
@@ -31,7 +31,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-LOOP_DIR = ".loop"
+LOOP_DIR = "loop-project"
 STATE_FILE = os.path.join(LOOP_DIR, "loop.json")
 LEDGER = os.path.join(LOOP_DIR, "ledger.md")
 
@@ -251,7 +251,7 @@ def cmd_init(args):
     save_state(state)
     ledger("Loop initialised (%s)." % ("brownfield" if args.brownfield else "greenfield"))
 
-    print("Initialised .loop/")
+    print("Initialised loop-project/")
     print("Phase 0. Next: research.md, then brd.md, prd.md, plan.md, dod.md.")
     if args.brownfield:
         print("Brownfield: survey the existing repo into 0-plan/research.md before writing requirements.")
@@ -308,9 +308,9 @@ Out of scope:
 - 
 
 ## Read-set
-- .loop/2-build/tasks/{tid}.md
-- .loop/1-spec/interfaces.md
-- .loop/1-spec/security.md (relevant rules only)
+- loop-project/2-build/tasks/{tid}.md
+- loop-project/1-spec/interfaces.md
+- loop-project/1-spec/security.md (relevant rules only)
 
 ## Write-set
 - src/**
@@ -359,7 +359,7 @@ def cmd_task(args):
             "title": args.title, "cycles": 0, "verdict": None, "findings": {}
         }
         save_state(state)
-        print("created .loop/2-build/tasks/%s.md" % tid)
+        print("created loop-project/2-build/tasks/%s.md" % tid)
         print("Fill in scope, read-set, write-set and acceptance before handing it to a Worker.")
         return 0
 
@@ -467,7 +467,7 @@ def check_secrets(files):
     for f in files:
         if not os.path.isfile(f):
             continue
-        if any(seg in f for seg in (".loop/", "node_modules/", ".git/", "dist/", "build/")):
+        if any(seg in f for seg in ("loop-project/", "node_modules/", ".git/", "dist/", "build/")):
             continue
         try:
             if os.path.getsize(f) > 2_000_000:
@@ -489,7 +489,7 @@ def check_secrets(files):
 def source_files(root="."):
     """Every plausible source file, excluding vendored and generated trees."""
     skip = {".git", "node_modules", "dist", "build", ".next", ".venv", "__pycache__",
-            "vendor", "target", ".loop", "coverage"}
+            "vendor", "target", "loop-project", "coverage"}
     exts = {".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java", ".rb", ".php",
             ".svelte", ".vue", ".css", ".scss", ".sql", ".kt", ".swift"}
     out = []
@@ -568,7 +568,7 @@ def check_slop(files):
     for f in files:
         if not os.path.isfile(f) or is_test_path(f):
             continue
-        if any(seg in f for seg in ("node_modules/", ".loop/", "dist/", "build/")):
+        if any(seg in f for seg in ("node_modules/", "loop-project/", "dist/", "build/")):
             continue
         try:
             if os.path.getsize(f) > 500_000:
@@ -628,7 +628,7 @@ def cmd_reuse(args):
     hits = 0
 
     if os.path.exists(CONVENTIONS):
-        print("registry (.loop/1-spec/conventions.md)")
+        print("registry (loop-project/1-spec/conventions.md)")
         for line in read(CONVENTIONS).splitlines():
             low = line.lower()
             if line.strip().startswith("|") and any(t in low for t in terms):
@@ -1051,7 +1051,7 @@ def cmd_block(args):
     save_state(state)
     ledger("BLOCKED: %s\n\nOptions and recommendation belong here." % args.reason)
     print("Status set to BLOCKED.")
-    print("Write the options and your recommendation into .loop/ledger.md, then stop.")
+    print("Write the options and your recommendation into loop-project/ledger.md, then stop.")
     return 0
 
 

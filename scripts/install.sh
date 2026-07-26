@@ -149,7 +149,7 @@ case "$TARGET" in
 esac
 
 if [[ $UNINSTALL -eq 1 ]]; then
-  echo "Done. Your .loop/ directories were left alone — they are project state, not installed files."
+  echo "Done. Your loop-project/ directories were left alone — they are project state, not installed files."
   exit 0
 fi
 
