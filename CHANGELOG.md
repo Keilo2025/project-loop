@@ -72,6 +72,25 @@ highest-leverage content technique and inventing them is the cheapest way to sat
   is stated explicitly — the Tester verifies stated rules, the Critic judges what a rule cannot capture.
 - Phase 1 gains section 1.7 with the intra-phase ordering rule: UX contract before design contract,
   content contract before the SEO and AI-readiness contracts.
+- `templates/ui-report.md` added for the UI Critic. The Adversary and Product Owner deliberately reuse
+  the QA and verdict templates rather than getting near-duplicates that drift.
+- `templates/task.md` carries a commented-out contract list so the Architect picks the ones a task
+  needs. Six contracts in every read-set is a tax on every task, and a Worker facing all six reads
+  none of them.
+- `token-budget.md` documents the three places a larger roster could have multiplied read cost, and
+  the rule that prevents each: one vertical section not twenty, a split discoverability reference, and
+  per-task contract selection.
+
+### Fixed
+
+- The CLI reported "5 subagents" in its install plan, its target hints and its uninstall summary,
+  while the installer had always copied every file in the agents directory. The count is now read from
+  disk via `agentCount()` rather than written as a literal, so it cannot drift again.
+- `docs/INSTALL.md` claimed five subagents were installed and that uninstall removed five files. Both
+  were wrong before this release too. It now distinguishes *installed* (all of them) from *enabled by
+  default* (five), which is the distinction that actually matters to a reader.
+- `docs/HOW-IT-WORKS.md` described "the four contracts" and listed four; there are now eight, and the
+  table marks which are always present and which belong to an optional role.
 
 ## [1.0.0] — 2026-07-26
 

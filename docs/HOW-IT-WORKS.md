@@ -61,19 +61,32 @@ reaches it, so the finish line is nailed down before anyone starts running.
 
 ---
 
-## The four contracts
+## The contracts
 
-Each is instantiated per project in Phase 1, and each is enforced by a Judge check.
+Each is instantiated per project in Phase 1, and each is enforced by a Judge check. The first three
+are always present. The rest belong to optional roles and exist only when that role is enabled.
 
-| Contract | Lives in | Guards against |
-|---|---|---|
-| Interfaces | `1-spec/interfaces.md` | Workers guessing at shapes and producing code that does not fit |
-| Security | `1-spec/security.md` | Missing authorisation, unvalidated boundaries, committed secrets |
-| Craft | `1-spec/conventions.md` | Duplication, convention drift, slop |
-| Design | `1-spec/design-contract.md` | UI that passes every test and is obviously unshippable |
+| Contract | Lives in | Guards against | Always? |
+|---|---|---|---|
+| Interfaces | `1-spec/interfaces.md` | Workers guessing at shapes and producing code that does not fit | yes |
+| Security | `1-spec/security.md` | Missing authorisation, unvalidated boundaries, committed secrets | yes |
+| Craft | `1-spec/conventions.md` | Duplication, convention drift, slop | yes |
+| Design | `1-spec/design-contract.md` | UI that passes every test and is obviously unshippable | Designer |
+| UX | `1-spec/ux-contract.md` | A flow that satisfies every criterion and that the intended user abandons | UX Researcher |
+| Content | `1-spec/content-contract.md` | Four Workers writing in four voices, none of them the product's | Content Strategist |
+| SEO | `1-spec/seo-contract.md` | Content invisible to crawlers, staging indexed, missing pages returning 200 | SEO Specialist |
+| AI readiness | `1-spec/ai-readiness.md` | Crawler grants nobody decided, content that misleads when quoted, a product software cannot use | LLM Specialist |
 
-Every rule in every contract must carry a stated check. A rule without one is a wish, and Workers
-learn within two tasks to skim a list of wishes.
+**Every rule in every contract must carry a stated check.** A rule without one is a wish, and Workers
+learn within two tasks to skim a list of wishes. `loop.py gate g1 --check` asserts the mechanical half
+of this per contract — that rules were selected, that each row has a check and a blocking flag, that
+the UX bars are numbers rather than adjectives.
+
+One asymmetry worth knowing. When an optional role is off, the core role in its class normally absorbs
+its contract — Designer off means the Architect writes `design-contract.md`. The **SEO and AI-readiness
+contracts are the exception**: no other role's remit covers crawlability or agent-usability, so nobody
+absorbs them and turning those roles off removes the work rather than moving it. `loop.py roles --list`
+prints that warning rather than letting the general claim stand where it is false.
 
 ---
 

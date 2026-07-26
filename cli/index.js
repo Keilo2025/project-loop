@@ -19,7 +19,9 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const { select, multiselect, confirm, text, out, paint, colors } = require('./prompts');
-const { TARGETS, ALL_TARGET_IDS, SKILL_NAME, resolveDestinations } = require('./targets');
+const {
+  TARGETS, ALL_TARGET_IDS, SKILL_NAME, resolveDestinations, agentCount,
+} = require('./targets');
 const cfgStore = require('./config');
 const { runInstall, runUninstall, scanInstalls, PKG_ROOT, SKILL_SRC, assertPayload } = require('./install');
 
@@ -226,7 +228,9 @@ function printPlan(plan, verb) {
   for (const t of plan.targets) {
     const d = resolveDestinations(t, plan.scope, plan.projectRoot, plan.customPath);
     out.line('  ' + paint(colors.grey, '· ' + d.skillDest));
-    if (d.agentsDir) out.line('  ' + paint(colors.grey, '· ' + d.agentsDir + '  (5 subagents)'));
+    if (d.agentsDir) {
+      out.line('  ' + paint(colors.grey, '· ' + d.agentsDir + '  (' + agentCount() + ' subagents)'));
+    }
     for (const a of d.adapters) out.line('  ' + paint(colors.grey, '· ' + a.to));
   }
   if (plan.dry) out.info('dry run — nothing will be written');

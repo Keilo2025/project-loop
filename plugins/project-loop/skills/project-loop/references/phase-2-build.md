@@ -26,9 +26,16 @@ Phase 1.
 1. **Scope** — what is being built, in one paragraph, plus what is explicitly out of scope.
 2. **Read-set** — the exact files this Worker may read. Typically the card itself,
    `1-spec/interfaces.md`, `1-spec/conventions.md`, the relevant section of `1-spec/security.md`,
-   `design-contract.md` if it produces UI, and the source files it will modify. Not the BRD. Not
-   the PRD in full. Not other task cards. `conventions.md` is always in the read-set — it is the
-   only thing standing between twenty tasks and twenty personal styles.
+   and the source files it will modify. Not the BRD. Not the PRD in full. Not other task cards.
+   `conventions.md` is always in the read-set — it is the only thing standing between twenty tasks
+   and twenty personal styles.
+
+   **Name the contracts this task must satisfy, and only those.** With every specialist role
+   enabled there are six contracts in `1-spec/`, and putting all six in every read-set turns them
+   into a tax paid on every task. A UI task cites `design-contract.md`, `ux-contract.md` and
+   `content-contract.md`; a page template or metadata task cites `seo-contract.md` and
+   `ai-readiness.md`; a background job cites none of them. Choosing well is the Architect's job —
+   a Worker that has to guess which contract applies will either read all of them or none.
 3. **Write-set** — the exact paths this Worker may create or modify. Enforced mechanically at
    verification; anything outside is a scope violation regardless of how good the change was.
 4. **Acceptance** — the `AC-###` items this task closes, each with the test or procedure that

@@ -43,7 +43,7 @@ path it scans.
 
 | Agent | User scope | Project scope | Extra |
 |---|---|---|---|
-| Claude Code | `~/.claude/skills/` + `~/.claude/agents/` | `.claude/skills/` + `.claude/agents/` | 5 subagents |
+| Claude Code | `~/.claude/skills/` + `~/.claude/agents/` | `.claude/skills/` + `.claude/agents/` | 18 subagents |
 | OpenAI Codex | `~/.agents/skills/` | `.agents/skills/` | `AGENTS.md` at repo root |
 | Cursor | `~/.cursor/skills/` | `.cursor/skills/` | `.cursor/rules/project-loop.mdc` |
 | Other | your path | your path | `AGENTS.md` at repo root |
@@ -109,9 +109,13 @@ things that actually go wrong, in the order they go wrong.
 /plugin install project-loop@project-loop
 ```
 
-Installs the skill and five subagents — Planner, Architect, Worker, Tester, Judge — each with its
-own context window. That is the strongest form of the role isolation the design depends on: a
-Judge that has never seen the Worker's reasoning cannot be persuaded by it.
+Installs the skill and all eighteen subagents, each with its own context window. That is the
+strongest form of the role isolation the design depends on: a Judge that has never seen the Worker's
+reasoning cannot be persuaded by it.
+
+**Installed is not the same as enabled.** All eighteen are placed on disk; five are enabled by
+default — Planner, Architect, Worker, Tester, Judge — and which of the other thirteen a given loop
+actually spawns is decided per project by `loop.py roles`, not by what is present in the directory.
 
 For a team, install at project scope so it travels with the repository:
 
@@ -229,7 +233,7 @@ Or from a clone: `./scripts/install.sh --target all --uninstall`.
 
 Or in Claude Code: `claude plugin uninstall project-loop@project-loop`.
 
-Uninstall removes the skill directory and the five named subagent files. It deliberately leaves
+Uninstall removes the skill directory and the eighteen named subagent files. It deliberately leaves
 adapter files alone — your `AGENTS.md` and Cursor rules may have been edited since, and silently
 deleting an edited file is worse than leaving a stale one.
 

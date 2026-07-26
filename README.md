@@ -63,11 +63,25 @@ later tasks. Workers must run `loop.py reuse "<thing>"` before creating anything
 flags near-duplicate files, unregistered components, and the mechanical slop patterns — empty catch
 blocks, `any` escape hatches, leftover debug output, comments that restate the line below them.
 
-**5. Security and frontend quality are blocking gates, not advice.**
-A security contract instantiated per project from OWASP's LLM and Agentic Applications risk lists,
-where every rule carries a stated check — because a rule with no check is a wish. Plus a design
-contract covering tokens, required states, and a measured WCAG 2.2 AA bar. The Judge enforces
-both.
+**5. Security, craft and quality are blocking gates, not advice.**
+Contracts are instantiated per project, and **every rule in one carries a stated check** — because a
+rule with no check is a wish, and agents learn within two tasks to skim a list of wishes. The Judge
+enforces each of them:
+
+| Contract | Owned by | Covers |
+|---|---|---|
+| Security | Security Architect | Selected from OWASP's LLM and Agentic Applications risk lists |
+| Design | Designer | Tokens, required states, a measured WCAG 2.2 AA bar, anti-generic bans |
+| UX | UX Researcher | Segment, jobs, journeys with numeric step and field bars |
+| Content | Content Strategist | Message hierarchy, voice as bans, the shipped string table |
+| SEO | SEO Specialist | Rendering, indexation, canonicals, JSON-LD, Core Web Vitals |
+| AI readiness | LLM Specialist | Crawler grants, retrievability, whether an agent can do the job |
+
+**Eighteen roles across four authority classes, five on by default.** Authority attaches to the
+class — PLAN, CODE, TEST, JUDGE — not the persona, and no role holds two. That is what makes a verdict
+mean something: the thing that wrote the code is never the thing that decides it is done. Going from
+five roles to eighteen added thirteen briefs and zero permission rules. `loop.py roles --recommend`
+reads the shape of the project and proposes a set; G0 will not pass until a human confirms it.
 
 And it is built to be cheap. Read-sets are binding, handoff is by artifact rather than
 conversation, deterministic checks run in a script instead of costing model tokens, and the Judge
@@ -91,7 +105,7 @@ download and there is no supply chain to audit.
 
 ```
 ? Install into which agents?
-  [x] Claude Code      - skill + 5 subagents (strongest role isolation)
+  [x] Claude Code      - skill + 18 subagents (strongest role isolation)
   [ ] OpenAI Codex     - skill only — no subagents, roles run sequentially
   [ ] Cursor           - skill + a short project rule that pulls it in on demand
   [ ] Other agent      - any tool that reads the Agent Skills format
@@ -212,11 +226,15 @@ with no conversation history at all — which is the point.
 /loop-project
 ├── loop.json              phase, cursor, cycle counts, frozen DoD hash
 ├── ledger.md              append-only: decisions, deviations, escalations
-├── 0-plan/                research, BRD, EARS product spec, milestones, frozen DoD
-├── 1-spec/                architecture, interfaces, security + craft + design contracts, conventions, QA strategy
+├── 0-plan/                research, domain brief, BRD, EARS product spec, milestones, frozen DoD
+├── 1-spec/                architecture, interfaces, conventions, QA strategy, and one contract per
+│                          enabled specialist: security, design, UX, content, SEO, AI readiness
 ├── 2-build/               task cards and Worker REPORTs
-└── 3-verify/              QA reports, Judge verdicts, numbered rework orders
+└── 3-verify/              QA, security, and UI reports; Judge verdicts; numbered rework orders
 ```
+
+Not every file appears in every loop. The contracts belong to optional roles, and `loop.py roles`
+decides which of those are running — a CLI tool produces a much smaller tree than a public platform.
 
 That is also your audit trail. Every decision traces to a document, every acceptance criterion
 traces to evidence, and every deviation is in the ledger — which matters if anyone ever has to

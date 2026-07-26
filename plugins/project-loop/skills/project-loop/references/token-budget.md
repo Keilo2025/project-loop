@@ -19,16 +19,22 @@ diligent and mostly buys noise.
 | Role | Reads | Does not read |
 |---|---|---|
 | Analyst | the request, the repo if brownfield, the web | — |
-| Planner | the request, `research.md`, the repo if brownfield | — |
+| Domain Analyst | the request, **its vertical's section only** of `references/verticals.md`, the web | the other nineteen vertical sections, source code |
+| Planner | the request, `research.md`, `domain.md`, the repo if brownfield | — |
 | Architect | `prd.md`, `dod.md`, `research.md` | `brd.md` — rationale does not move component boundaries |
-| Designer | `prd.md`, the UI acceptance rows, `architecture.md` | the BRD, source code |
+| UX Researcher | `prd.md`, `domain.md`, `design-contract.md` if written | the BRD, source code, task cards |
+| Designer | `prd.md`, the UI acceptance rows, `architecture.md`, `ux-contract.md` | the BRD, source code |
+| Content Strategist | `prd.md`, `ux-contract.md`, the vocabulary table in `domain.md` | architecture, source code, the full domain brief |
+| SEO Specialist | `architecture.md`, `interfaces.md`, `content-contract.md`, `discoverability-contract.md` **Part A** | Part B, the BRD, source code |
+| LLM Specialist | `architecture.md`, `interfaces.md`, `content-contract.md`, `seo-contract.md`, `discoverability-contract.md` **Part B** | Part A, the BRD, source code |
 | Security Architect | `architecture.md`, `interfaces.md`, `prd.md`, `research.md` | task cards, source code |
-| Worker | its task card, `interfaces.md`, `conventions.md`, relevant `security.md` section, `design-contract.md` if UI | BRD, PRD, other task cards, other reports |
+| Worker | its task card, `interfaces.md`, `conventions.md`, and only the contracts its task cites | BRD, PRD, other task cards, other reports, contracts its task does not cite |
 | Integrator | its task card, `architecture.md`, `interfaces.md`, `conventions.md`, existing build and CI config | application source, the PRD |
 | Scribe | `README.md`, `interfaces.md`, merged task cards and REPORTs | application source internals, the BRD |
-| Tester | task card, REPORT, `qa-strategy.md`, acceptance rows | architecture, the Worker's reasoning |
+| Tester | task card, REPORT, `qa-strategy.md`, acceptance rows, the enabled contracts in scope | architecture, the Worker's reasoning |
 | Adversary | `security.md`, `interfaces.md`, task card, the running system | the Worker's reasoning, the BRD |
-| Judge | task card, REPORT, QA and SEC reports, DoD rows in scope, `git diff --stat`, targeted diffs | the whole tree |
+| UI Critic | `design-contract.md`, `ux-contract.md`, `content-contract.md`, task card, **the running interface** | component source — it judges what rendered, not what was written |
+| Judge | task card, REPORT, QA/SEC/UI reports, DoD rows in scope, `git diff --stat`, targeted diffs | the whole tree |
 | Product Owner | `brd.md`, `dod.md`, the Judge's verdicts, the running system | the diff, task cards, REPORTs |
 
 A Worker building a single endpoint does not need to know why the business wants it. If the
@@ -39,6 +45,18 @@ where it can be read for a few hundred tokens instead of several thousand.
 A Designer reading the UI acceptance rows is reading rows the Architect would otherwise have read
 itself. The cost of a larger roster is turns and handoffs, not context — which is why the honest
 argument against a role is "its output changes no verdict," never "it reads too much."
+
+Three places where an eighteen-role roster could break that property, each handled by a rule above
+rather than by good intentions:
+
+- **`verticals.md` is twenty sections and the Domain Analyst reads one.** Reading all twenty costs
+  roughly twenty times as much and produces a worse brief, because attention spread across nineteen
+  irrelevant verticals finds nothing. The role brief says so explicitly.
+- **`discoverability-contract.md` is split into Part A and Part B** precisely so the SEO and LLM
+  Specialists load half a file each rather than both loading all of it.
+- **Workers read only the contracts their task cites.** Six contracts in `1-spec/` would otherwise
+  become six files loaded on every task. The Architect names the relevant ones on the card; a task
+  that touches no UI does not load the design, UX or content contract.
 
 ---
 
@@ -101,9 +119,18 @@ Output tokens cost more than input tokens on most models, and long artifacts get
 | Rework order | 120 words |
 | Verdict | the checks table plus orders — no essay |
 | Research notes | two pages |
+| Domain brief | two or three pages, tables not prose |
 | Design contract | one page |
+| UX contract | two pages |
+| Content contract | two pages plus the string table, which is as long as it needs to be |
+| SEO contract | the rule table plus notes and accepted gaps |
+| AI-readiness contract | a page and a half — say "uncertain" in a line rather than padding around it |
 | `conventions.md` | two pages — it loads on every task, so a bloated one is a tax paid dozens of times |
 | REPORT Reuse section | three lines |
+
+The contract ceilings are not arbitrary tidiness. A contract nobody reads is worse than no contract,
+because it creates the appearance of a standard that nothing enforces. If one runs long, cut the rules
+that would not change a decision or fail a check — that test removes most of the overrun.
 
 Command output follows the trim rule: whole if it fits in about twenty lines, otherwise every
 failure verbatim plus the last twenty lines.

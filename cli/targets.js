@@ -7,10 +7,24 @@
 // this file exists. Keep it boring and keep it accurate — a wrong path here
 // produces a silent no-op, which is the worst failure mode an installer has.
 
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const SKILL_NAME = 'project-loop';
+
+// Counted from disk, never hardcoded. A literal here goes stale the moment a role is added, and a
+// wrong count in the installer's own output is the kind of small lie that makes a user distrust the
+// rest of it. Falls back to 0 rather than guessing if the payload is missing.
+function agentCount() {
+  try {
+    return fs
+      .readdirSync(path.join(__dirname, '..', 'plugins', 'project-loop', 'agents'))
+      .filter((f) => f.endsWith('.md')).length;
+  } catch (e) {
+    return 0;
+  }
+}
 
 function home() {
   return os.homedir();
@@ -20,7 +34,7 @@ const TARGETS = {
   claude: {
     id: 'claude',
     label: 'Claude Code',
-    hint: 'skill + 5 subagents (strongest role isolation)',
+    hint: 'skill + ' + agentCount() + ' subagents (strongest role isolation)',
     supportsAgents: true,
     user() {
       return {
@@ -136,4 +150,6 @@ function resolveDestinations(targetId, scope, projectRoot, customPath) {
   };
 }
 
-module.exports = { TARGETS, ALL_TARGET_IDS, SKILL_NAME, resolveTarget, resolveDestinations };
+module.exports = {
+  TARGETS, ALL_TARGET_IDS, SKILL_NAME, resolveTarget, resolveDestinations, agentCount,
+};
