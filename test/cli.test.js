@@ -93,7 +93,7 @@ test('dry run writes nothing', ({ fakeHome }) => {
   assert.ok(r.stdout.includes('would'), 'dry run should say what it would do');
 });
 
-test('user scope installs skill + all 12 subagents for claude', ({ fakeHome }) => {
+test('user scope installs skill + all 18 subagents for claude', ({ fakeHome }) => {
   const r = run(['install', '--target', 'claude', '--scope', 'user', '--yes', '--no-save'],
     { HOME: fakeHome, USERPROFILE: fakeHome });
   assert.strictEqual(r.status, 0, r.stderr);
@@ -104,17 +104,43 @@ test('user scope installs skill + all 12 subagents for claude', ({ fakeHome }) =
   assert.ok(fs.existsSync(path.join(skill, 'references', 'roles.md')), 'references missing');
   assert.ok(fs.existsSync(path.join(skill, 'templates', 'verdict.md')), 'templates missing');
 
-  // All twelve are installed; which ones a given loop actually spawns is decided per project by
+  // All eighteen are installed; which ones a given loop actually spawns is decided per project by
   // `loop.py roles`, not by what is present on disk.
   const agents = fs.readdirSync(path.join(fakeHome, '.claude', 'agents')).filter((f) => f.endsWith('.md'));
-  assert.strictEqual(agents.length, 12, 'expected 12 subagents, got ' + agents.length);
+  assert.strictEqual(agents.length, 18, 'expected 18 subagents, got ' + agents.length);
 
   for (const core of ['loop-planner', 'loop-architect', 'loop-worker', 'loop-tester', 'loop-judge']) {
     assert.ok(agents.includes(core + '.md'), 'core subagent missing: ' + core);
   }
-  for (const optional of ['loop-analyst', 'loop-designer', 'loop-security-architect',
-    'loop-integrator', 'loop-scribe', 'loop-adversary', 'loop-product-owner']) {
+  for (const optional of ['loop-analyst', 'loop-domain-analyst', 'loop-ux-researcher',
+    'loop-designer', 'loop-content-strategist', 'loop-seo-specialist', 'loop-llm-specialist',
+    'loop-security-architect', 'loop-integrator', 'loop-scribe', 'loop-adversary',
+    'loop-ui-critic', 'loop-product-owner']) {
     assert.ok(agents.includes(optional + '.md'), 'optional subagent missing: ' + optional);
+  }
+});
+
+// Every role in loop.py must have a subagent file and vice versa. Without this, adding a role to the
+// dict and forgetting the agent file produces a loop that recommends a role nobody can spawn.
+test('every role in loop.py has a matching agent file', () => {
+  const loopPy = fs.readFileSync(
+    path.join(__dirname, '..', 'plugins', 'project-loop', 'skills', 'project-loop', 'scripts', 'loop.py'),
+    'utf8');
+  const block = loopPy.slice(loopPy.indexOf('ROLES = {'), loopPy.indexOf('CORE_ROLES ='));
+  const keys = [...block.matchAll(/^\s{4}"([a-z-]+)":/gm)].map((m) => m[1]);
+  assert.ok(keys.length === 18, 'expected 18 role keys in loop.py, got ' + keys.length);
+
+  const agentDir = path.join(__dirname, '..', 'plugins', 'project-loop', 'agents');
+  const files = fs.readdirSync(agentDir).filter((f) => f.endsWith('.md'));
+  assert.strictEqual(files.length, keys.length,
+    'agent file count (' + files.length + ') != role count (' + keys.length + ')');
+
+  for (const key of keys) {
+    assert.ok(files.includes('loop-' + key + '.md'), 'no agent file for role: ' + key);
+    // The frontmatter name must match the filename or the subagent cannot be addressed.
+    const body = fs.readFileSync(path.join(agentDir, 'loop-' + key + '.md'), 'utf8');
+    assert.ok(new RegExp('^name:\\s*loop-' + key + '\\s*$', 'm').test(body),
+      'frontmatter name mismatch in loop-' + key + '.md');
   }
 });
 

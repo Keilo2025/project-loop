@@ -28,9 +28,16 @@ State lives in `/loop-project/loop.json`, not in the conversation.
 
 ## Roles
 
-Twelve roles across four authority classes — PLAN, CODE, TEST, JUDGE — of which five are enabled by
+Eighteen roles across four authority classes — PLAN, CODE, TEST, JUDGE — of which five are enabled by
 default: Planner, Architect, Worker, Tester, Judge. Choose the set at loop start with
 `loop.py roles --recommend`; G0 will not pass until it is confirmed.
+
+The optional roles are Analyst, Domain Analyst, UX Researcher, Designer, Content Strategist, SEO
+Specialist, LLM Specialist, Security Architect (PLAN); Integrator, Scribe (CODE); Adversary, UI
+Critic (TEST); Product Owner (JUDGE). The Domain Analyst takes a vertical:
+`loop.py roles --enable domain-analyst --vertical fintech`. The SEO and LLM Specialists are
+unabsorbed — no other role covers their rules, so disabling them removes the work rather than moving
+it.
 
 Run the enabled roles sequentially, announcing each switch, and honour each role's read-set. No
 role ever holds two authority classes. Briefs are in the skill's `references/roles.md`.

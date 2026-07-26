@@ -5,7 +5,7 @@ The plugin package. Full documentation is in the [repository root](../../README.
 ```
 plugins/project-loop/
 ├── .claude-plugin/plugin.json
-├── agents/                     12 roles as Claude Code subagents, 5 enabled by default
+├── agents/                     18 roles as Claude Code subagents, 5 enabled by default
 └── skills/project-loop/
     ├── SKILL.md                router, state machine, gates
     ├── references/             phases, roles, rubrics, contracts

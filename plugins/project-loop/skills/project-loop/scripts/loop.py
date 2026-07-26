@@ -9,10 +9,11 @@ Python 3.8+, standard library only, no network access.
 
   loop.py init [--brownfield]      scaffold /loop-project
   loop.py status                   compact state summary (run this first, every session)
-  loop.py roles --list             show the 12 roles, their class, and what is enabled
+  loop.py roles --list             show the 18 roles, their class, and what is enabled
   loop.py roles --recommend        propose a role set from the shape of this project
-  loop.py roles --preset standard  apply core (5), standard (8) or full (12)
+  loop.py roles --preset growth    core 5 | standard 8 | product 12 | growth 15 | full 18
   loop.py roles --enable designer  turn individual roles on or off (--disable too)
+  loop.py roles --vertical fintech set the Domain Analyst's vertical (--vertical list to see them)
   loop.py task new "<title>"       create the next TASK card
   loop.py task list                list tasks and their state
   loop.py reuse "currency format"  search registry + tree BEFORE building anything new
@@ -56,10 +57,20 @@ CLASSES = {
 ROLES = {
     "analyst": ("Analyst", "PLAN", "0-plan/research.md", False,
                 "unfamiliar domain, fast-moving stack, or constraints nobody has checked"),
+    "domain-analyst": ("Domain Analyst", "PLAN", "0-plan/domain.md", False,
+                       "a regulated or convention-heavy vertical whose table stakes you do not know"),
     "planner": ("Planner", "PLAN", "0-plan/brd,prd,plan,dod.md", True, ""),
     "architect": ("Architect", "PLAN", "1-spec/architecture,interfaces,conventions.md + tasks", True, ""),
+    "ux-researcher": ("UX Researcher", "PLAN", "1-spec/ux-contract.md", False,
+                      "the users are not you, and a wrong flow costs more than a wrong colour"),
     "designer": ("Designer", "PLAN", "1-spec/design-contract.md", False,
                  "the project has a UI a human will look at"),
+    "content-strategist": ("Content Strategist", "PLAN", "1-spec/content-contract.md", False,
+                           "shipped words have to persuade or instruct a specific audience"),
+    "seo-specialist": ("SEO Specialist", "PLAN", "1-spec/seo-contract.md", False,
+                       "there are public pages that have to be found by search"),
+    "llm-specialist": ("LLM Specialist", "PLAN", "1-spec/ai-readiness.md", False,
+                       "the platform should be readable, citable and operable by AI systems"),
     "security-architect": ("Security Architect", "PLAN", "1-spec/security.md", False,
                            "auth, personal data, payments, uploads or third-party input"),
     "worker": ("Worker", "CODE", "application source in its write-set", True, ""),
@@ -70,6 +81,8 @@ ROLES = {
     "tester": ("Tester", "TEST", "3-verify/qa/QA-###.md", True, ""),
     "adversary": ("Adversary", "TEST", "3-verify/qa/SEC-###.md", False,
                   "a security rule is blocking and somebody should try to break it"),
+    "ui-critic": ("UI Critic", "TEST", "3-verify/qa/UI-###.md", False,
+                  "somebody has to look at what rendered and say whether it looks generated"),
     "judge": ("Judge", "JUDGE", "3-verify/verdicts/V-###.md + rework/R-###.md", True, ""),
     "product-owner": ("Product Owner", "JUDGE", "3-verify/verdicts/PO-###.md", False,
                       "a stakeholder cares whether the outcome moved, not just whether it shipped"),
@@ -77,9 +90,27 @@ ROLES = {
 
 CORE_ROLES = [k for k, v in ROLES.items() if v[3]]
 
+# Roles whose artifact nobody else absorbs. Disabling any other optional role hands its work to the
+# core role in the same class; disabling one of these means the work is simply not done. Said plainly
+# because "nothing is skipped by disabling a role" is otherwise a false claim.
+UNABSORBED_ROLES = ["seo-specialist", "llm-specialist"]
+
+# The Domain Analyst is a specialist in one vertical. A section per key lives in
+# references/verticals.md; "other" is legitimate and means "research it, there is no section".
+VERTICALS = [
+    "fintech", "healthtech", "proptech", "agritech", "regtech", "insurtech", "legaltech",
+    "edtech", "climatetech", "martech", "hrtech", "logistics", "govtech", "defencetech",
+    "commerce", "wealthtech", "cybersecurity", "biotech", "traveltech", "foodtech", "other",
+]
+
 PRESETS = {
     "core": list(CORE_ROLES),
     "standard": CORE_ROLES + ["analyst", "designer", "adversary"],
+    "product": CORE_ROLES + ["analyst", "ux-researcher", "designer", "adversary", "ui-critic",
+                             "scribe", "product-owner"],
+    "growth": CORE_ROLES + ["analyst", "ux-researcher", "designer", "content-strategist",
+                            "seo-specialist", "llm-specialist", "adversary", "ui-critic",
+                            "scribe", "product-owner"],
     "full": list(ROLES),
 }
 
@@ -279,6 +310,16 @@ SEED = {
     "1-spec/design-contract.md": "# Design contract\n\nDelete this file if the project has no UI.\n\n## Tokens\n## Component inventory and required states\n## Accessibility bar\n## Responsive floor\n## Character (2-3 adjectives with consequences)\n## Anti-generic bans\n## Performance budget\n",
 }
 
+# Seeded only when the owning role is enabled. Scaffolding a contract nobody owns creates an empty
+# file that reads as a standard and is enforced by no one.
+OPTIONAL_SEED = {
+    "domain-analyst": ("0-plan/domain.md", "# Domain brief\n\nVertical: <set via loop.py roles --vertical>\nSection read from references/verticals.md: \n\n## Table stakes\nWhat every serious product here has, that a newcomer forgets.\n\n| Feature | Why its absence disqualifies you |\n|---------|----------------------------------|\n\n## Regulatory and standards constraints\nState the trigger, not just the regime. Date every verification.\n\n| Regime | Trigger (what brings it into scope) | What it forces the build to contain | Verified |\n|--------|-------------------------------------|-------------------------------------|----------|\n\n## Vocabulary\n| Term | Means here | Does NOT mean |\n|------|-----------|---------------|\n\n## Integration and data reality\n\n## Open questions for the human\n- \n"),
+    "ux-researcher": ("1-spec/ux-contract.md", "# UX contract\n\n## Segment, stated as consequences\n| Dimension | This segment | What it rules out |\n|-----------|-------------|-------------------|\n| Device and input | | |\n| Session shape | | |\n| Interruption tolerance | | |\n| Error cost | | |\n| Expertise and frequency | | |\n| Environment | | |\n\n## Jobs\n| Job | Trigger | Outcome wanted | 'Done' looks like | What they do today instead |\n|-----|---------|----------------|-------------------|----------------------------|\n\n## Journeys with a completion bar\n| Journey | Max steps | Max required fields | Must persist across | Must be recoverable |\n|---------|-----------|--------------------|--------------------|--------------------|\n\n## Failure states drawn from reality\n| Failure | What the system does | What the user sees | What they do next |\n|---------|---------------------|--------------------|-------------------|\n\n## Cognitive load rules\n\n## Accessibility completability\n\n## Non-goals, in experience terms\n- \n\n## Evidence\n| Claim | Source | Or: assumed, and what would test it |\n|-------|--------|-------------------------------------|\n"),
+    "content-strategist": ("1-spec/content-contract.md", "# Content contract\n\n## Message hierarchy\nWhat this is and who it is for, in one sentence:\n\n| # | Claim | Evidence it rests on |\n|---|-------|----------------------|\n| 1 | | |\n\nThe objection this answers:\n\n## Voice, stated as bans\n| Never | Always |\n|-------|--------|\n\nBanned generated register (extend from references/content-contract.md):\n\n## Interface copy\n| Surface | String | Constraint |\n|---------|--------|------------|\n\n## Terminology\n| Approved term | Replaces |\n|---------------|----------|\n\nReading level target and the tool that measures it:\n\n## Retrieval structure\n\n## Claims discipline\n"),
+    "seo-specialist": ("1-spec/seo-contract.md", "# SEO contract\n\nSelected from references/discoverability-contract.md Part A. Every rule needs a check.\n\n| ID | Rule | Applies to | Check | Blocking |\n|----|------|-----------|-------|----------|\n| SEO-01 | | | | Yes |\n\n## Notes\nWhat discoverability actually means for this product.\n\n## Accepted gaps\nWhat we knowingly are not doing this cycle, why, and who accepted it.\n"),
+    "llm-specialist": ("1-spec/ai-readiness.md", "# AI readiness contract\n\nSelected from references/discoverability-contract.md Part B. Every rule needs a check.\nVerify anything you make blocking — this area moves faster than the reference does.\n\n## Crawler access decision\n| Bot | Training | Retrieval | Live answers | Decided by | Why |\n|-----|----------|-----------|--------------|-----------|-----|\n| GPTBot | | | | | |\n| ClaudeBot | | | | | |\n| PerplexityBot | | | | | |\n| Google-Extended | | | | | |\n| CCBot | | | | | |\n\n## Rules\n| ID | Rule | Applies to | Check | Blocking |\n|----|------|-----------|-------|----------|\n| AI-01 | | | | Yes |\n\n## Cross-references to security.md\nRules for an embedded model live there, not here.\n\n## Accepted gaps\n"),
+}
+
 
 def cmd_init(args):
     if os.path.exists(STATE_FILE) and not args.force:
@@ -303,7 +344,7 @@ def cmd_init(args):
         "cursor": "0.1 research",
         "brownfield": bool(args.brownfield),
         "human_gates": ["g0"],
-        "roles": {"enabled": list(CORE_ROLES), "preset": "core",
+        "roles": {"enabled": list(CORE_ROLES), "preset": "core", "vertical": None,
                   "selected": False, "selected_at": None},
         "gates": {g: {"passed": False, "at": None} for g in GATES},
         "dod_hash": None,
@@ -316,7 +357,7 @@ def cmd_init(args):
     print("Initialised /loop-project")
     print("Phase 0. First choose the role set, then research.md, brd.md, prd.md, plan.md, dod.md.")
     print("")
-    print("Roles: 12 available, the core 5 enabled by default. Run 'loop.py roles --recommend',")
+    print("Roles: 18 available, the core 5 enabled by default. Run 'loop.py roles --recommend',")
     print("put the result to the human, then apply it. G0 will not pass until the set is confirmed,")
     print("because a roster nobody chose is a roster nobody owns.")
     if args.brownfield:
@@ -389,16 +430,32 @@ def preset_label(enabled):
 def print_roster(state):
     active = set(enabled_roles(state))
     rstate = state.get("roles") or {}
-    print("preset:  %s%s\n" % (rstate.get("preset", "core"),
-                               "" if rstate.get("selected") else "   (default, not yet confirmed)"))
+    print("preset:  %s%s" % (rstate.get("preset", "core"),
+                             "" if rstate.get("selected") else "   (default, not yet confirmed)"))
+    if "domain-analyst" in active:
+        print("vertical: %s" % (rstate.get("vertical") or "NOT SET — run: loop.py roles --vertical <name>"))
+    print("")
     shown = None
     for key, (name, cls, owns, core, _why) in ROLES.items():
         if cls != shown:
             shown = cls
             print("%s — %s" % (cls, CLASSES[cls]))
-        print("  %s  %-19s %-46s %s" % (
-            "on " if key in active else "off", key, owns, "[core]" if core else ""))
+        flag = "[core]" if core else ("[unabsorbed]" if key in UNABSORBED_ROLES else "")
+        print("  %s  %-20s %-46s %s" % (
+            "on " if key in active else "off", key, owns, flag))
     print("\n%d of %d roles enabled." % (len(active), len(ROLES)))
+
+    missing = [k for k in UNABSORBED_ROLES if k not in active]
+    if missing:
+        print("\n[unabsorbed] means no other role picks the work up. Off right now: %s."
+              % ", ".join(missing))
+        print("Every other optional role hands its artifact to the core role in its class. These two")
+        print("do not — disabled means those rules are absent, not delegated. Fine if the product has")
+        print("no public surface; worth knowing if it does.")
+
+    if "domain-analyst" in active and not rstate.get("vertical"):
+        print("\nThe Domain Analyst has no vertical set. Without one it is a second Analyst at the")
+        print("same cost. Set it with: loop.py roles --vertical <name>   (--vertical list to see them)")
 
 
 def recommend_roles(state):
@@ -421,13 +478,39 @@ def recommend_roles(state):
         suggest.update(role_keys)
         signals.append("%-38s -> %s" % (why, ", ".join(role_keys)))
 
-    if {".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"} & exts or \
-            re.search(r"\b(ui|screen|page|component|button|form|design|layout)\b", plan_text):
-        note(["designer"], "UI present or specified")
+    has_ui = bool({".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"} & exts) or \
+        bool(re.search(r"\b(ui|screen|page|component|button|form|design|layout)\b", plan_text))
+    if has_ui:
+        note(["designer", "ui-critic"], "UI present or specified")
+
+    if has_ui and re.search(r"\b(user|customer|segment|audience|persona|journey|onboard|workflow|adoption)\b",
+                            plan_text):
+        note(["ux-researcher"], "a named audience with a job to do")
 
     if re.search(r"\b(auth|login|password|token|session|payment|card|pii|gdpr|hipaa|upload|personal data)\b",
                  plan_text) or any("auth" in f.lower() for f in tree):
         note(["security-architect", "adversary"], "auth / personal data / payments")
+
+    # A public surface is the trigger for the two unabsorbed roles. Nothing else covers them, so a
+    # missed signal here means the rules are simply absent.
+    public = re.search(r"\b(public|marketing|landing|blog|docs|seo|search engine|content|website|"
+                       r"discoverab|organic|sitemap)\b", plan_text)
+    if public:
+        note(["seo-specialist"], "public pages that have to be found")
+    if public or re.search(r"\b(llm|ai agent|mcp|chatgpt|perplexity|citation|rag|assistant|api)\b",
+                           plan_text):
+        note(["llm-specialist"], "AI systems should be able to read or act on it")
+
+    if re.search(r"\b(copy|content|messaging|tone of voice|brand|newsletter|campaign|persuad|"
+                 r"convert|microcopy)\b", plan_text):
+        note(["content-strategist"], "shipped words have to do work")
+
+    verticals_re = r"\b(%s)\b" % "|".join(v for v in VERTICALS if v != "other")
+    domain_hit = re.search(verticals_re, plan_text) or re.search(
+        r"\b(regulat|compliance|licence|license|statutory|audit trail|kyc|aml|gdpr|hipaa|"
+        r"mifid|solvency|csrd|ferpa|coppa|itar)\b", plan_text)
+    if domain_hit:
+        note(["domain-analyst"], "regulated or convention-heavy vertical")
 
     if os.path.exists("Dockerfile") or os.path.isdir(os.path.join(".github", "workflows")) or \
             re.search(r"\b(deploy|ci/cd|pipeline|docker|kubernetes|hosting|staging|production)\b", plan_text):
@@ -460,27 +543,52 @@ def recommend_roles(state):
 
     print("\nApply with:")
     if optional:
-        print("  loop.py roles --enable %s" % ",".join(optional))
+        cmd = "  loop.py roles --enable %s" % ",".join(optional)
+        if "domain-analyst" in optional:
+            cmd += " --vertical <name>"
+        print(cmd)
     else:
         print("  loop.py roles --confirm      (the core five are the right set here)")
 
+    if "domain-analyst" in optional:
+        print("\n  Verticals: %s" % ", ".join(VERTICALS))
+
     print("\nThis is a recommendation, not a decision — put it to the human before applying it.")
     print("More roles means a slower, more expensive loop that catches more. Fewer means the core")
-    print("roles absorb the work with less specialisation and a wider context. Nothing is skipped")
-    print("either way, so the question is only who does it and how carefully.")
+    print("roles absorb the work with less specialisation and a wider context.")
+    unabs = [k for k in UNABSORBED_ROLES if k in suggest]
+    if unabs:
+        print("\nTwo exceptions worth stating: %s own rules nobody else picks up."
+              % " and ".join(ROLES[k][0] for k in unabs))
+        print("Leaving them off does not move the work — it removes it.")
     return 0
 
 
 def cmd_roles(args):
     state = require_state()
     rstate = state.setdefault("roles", {"enabled": list(CORE_ROLES), "preset": "core",
-                                        "selected": False, "selected_at": None})
+                                        "selected": False, "selected_at": None, "vertical": None})
+
+    if args.vertical and args.vertical.strip().lower() == "list":
+        print("Verticals for the Domain Analyst\n-------------------------------")
+        for v in VERTICALS:
+            print("  " + v)
+        print("\nA section per vertical lives in references/verticals.md. 'other' is a legitimate")
+        print("choice and means there is no section — research it and write one.")
+        return 0
 
     if args.recommend:
         return recommend_roles(state)
 
     current = set(enabled_roles(state))
-    touched = bool(args.preset or args.enable or args.disable or args.confirm)
+    touched = bool(args.preset or args.enable or args.disable or args.confirm or args.vertical)
+
+    # Validate the vertical before touching anything, so a typo does not half-apply a role change.
+    vertical = None
+    if args.vertical:
+        vertical = args.vertical.strip().lower()
+        if vertical not in VERTICALS:
+            die("unknown vertical '%s'. Run: loop.py roles --vertical list" % vertical)
 
     if args.preset:
         if args.preset not in PRESETS:
@@ -491,6 +599,19 @@ def cmd_roles(args):
         if key not in ROLES:
             die("unknown role '%s'. Run: loop.py roles --list" % key)
         current.add(key)
+
+    # Applied after the preset so that `--preset growth --vertical proptech` does what it reads like.
+    # Naming a vertical is a request for the role that uses it.
+    if vertical:
+        was_vertical = rstate.get("vertical")
+        rstate["vertical"] = vertical
+        current.add("domain-analyst")
+        if was_vertical and was_vertical != vertical:
+            ledger("Domain Analyst vertical changed: %s -> %s. Any conclusion in 0-plan/domain.md "
+                   "drawn from the old vertical is now unsourced and must be re-derived."
+                   % (was_vertical, vertical))
+        else:
+            ledger("Domain Analyst vertical set: %s." % vertical)
 
     for key in split_keys(args.disable):
         if key not in ROLES:
@@ -512,7 +633,20 @@ def cmd_roles(args):
         if set(was) != set(enabled) or not args.confirm:
             ledger("Role set confirmed: %s (%d roles).\n%s"
                    % (rstate["preset"], len(enabled), ", ".join(enabled)))
-        print("Role set saved.\n")
+
+        # Seed the artifact an added role owns. Only on enable, and never over an existing file —
+        # overwriting a written contract with a template is the worst possible outcome here.
+        seeded = []
+        for key, (rel, body) in OPTIONAL_SEED.items():
+            if key in enabled:
+                path = os.path.join(LOOP_DIR, rel)
+                if not os.path.exists(path):
+                    write(path, body)
+                    seeded.append(rel)
+        print("Role set saved.")
+        if seeded:
+            print("Seeded: %s" % ", ".join(seeded))
+        print("")
 
     print_roster(state)
 
@@ -1173,6 +1307,22 @@ def gate_checks(gate, state):
             dod = read(p("0-plan/dod.md"))
             acs = re.findall(r"\bAC-\d{3}\b", dod)
             r.add("acceptance rows exist", bool(acs), "%d found" % len(set(acs)))
+        if role_enabled(state, "domain-analyst"):
+            vertical = (state.get("roles") or {}).get("vertical")
+            r.add("vertical chosen", bool(vertical),
+                  vertical or "run: loop.py roles --vertical <name>")
+            r.add("domain brief written", nonempty(p("0-plan/domain.md")),
+                  "0-plan/domain.md (Domain Analyst is enabled)")
+            if os.path.exists(p("0-plan/domain.md")):
+                dom = read(p("0-plan/domain.md"))
+                # A domain brief with no dated verification is a brief nobody can re-check, and
+                # regulatory claims are the ones where that matters most. Require a real date, not
+                # just the word "verified" — an undated "verified" is the same claim with a costume on.
+                dated = bool(re.search(r"(?i)\b(verified|checked|as of|retrieved|accessed)\b"
+                                       r"[^\n]{0,30}(\d{4}-\d{2}-\d{2}|\b\d{4}\b)", dom))
+                r.add("regulatory claims dated", dated,
+                      "dated verification present" if dated
+                      else "no dated verification — write 'verified <YYYY-MM-DD>' against each regime")
 
     elif gate == "g1":
         for name, path in [("architecture", "1-spec/architecture.md"),
@@ -1202,6 +1352,71 @@ def gate_checks(gate, state):
         if role_enabled(state, "designer"):
             r.add("design contract written", nonempty(p("1-spec/design-contract.md")),
                   "1-spec/design-contract.md (Designer is enabled)")
+        # Each optional PLAN role's artifact is required only when that role is on.
+        for key, path, label in [
+                ("ux-researcher", "1-spec/ux-contract.md", "ux contract"),
+                ("content-strategist", "1-spec/content-contract.md", "content contract"),
+                ("seo-specialist", "1-spec/seo-contract.md", "seo contract"),
+                ("llm-specialist", "1-spec/ai-readiness.md", "ai readiness contract")]:
+            if role_enabled(state, key):
+                r.add("%s written" % label, nonempty(p(path)),
+                      "%s (%s is enabled)" % (path, ROLES[key][0]))
+
+        # The two rule-table contracts are checked the same way security.md is: ids selected, and a
+        # stated check against each. A rule without a check cannot be judged and will not be enforced.
+        for key, path, label, pattern in [
+                ("seo-specialist", "1-spec/seo-contract.md", "seo", r"\bSEO-\d+\b"),
+                ("llm-specialist", "1-spec/ai-readiness.md", "ai readiness", r"\bAI-\d+\b")]:
+            if role_enabled(state, key) and os.path.exists(p(path)):
+                body = read(p(path))
+                ids = set(re.findall(pattern, body))
+                r.add("%s rules selected" % label, bool(ids), "%d rules" % len(ids))
+                rows = [ln for ln in body.splitlines() if re.search(pattern, ln) and "|" in ln]
+                uncheckable = [ln for ln in rows if len(
+                    [c for c in ln.strip().strip("|").split("|")[3:5] if c.strip()]) < 2]
+                r.add("%s rules carry a check" % label, bool(rows) and not uncheckable,
+                      "all %d rows have a check and a blocking flag" % len(rows) if rows and not uncheckable
+                      else "%d row(s) missing a check or blocking flag" % (len(uncheckable) or 1))
+
+        if role_enabled(state, "llm-specialist") and os.path.exists(p("1-spec/ai-readiness.md")):
+            ai = read(p("1-spec/ai-readiness.md"))
+            # The crawler grant has licensing and revenue consequences and no correct default. The
+            # seed template already names the bots, so naming them proves nothing — the grant cells
+            # have to be filled. A row of empty pipes is the decision nobody made.
+            bot_re = (r"(?i)\b(gptbot|oai-searchbot|claudebot|perplexitybot|google-extended|"
+                      r"ccbot|bytespider)\b")
+            decided_rows = [ln for ln in ai.splitlines()
+                            if re.search(bot_re, ln) and "|" in ln
+                            and len([c for c in ln.strip().strip("|").split("|")[1:]
+                                     if c.strip()]) >= 2]
+            prose = bool(re.search(r"(?i)(all (ai )?crawlers?|every crawler)[^.\n]{0,40}"
+                                   r"\b(allow|permit|block|disallow)", ai))
+            r.add("crawler access decided", bool(decided_rows) or prose,
+                  "%d crawler grant(s) filled" % len(decided_rows) if decided_rows
+                  else ("blanket decision stated in prose" if prose
+                        else "the crawler table is still empty — fill the grant per bot, or state "
+                             "one blanket decision explicitly"))
+
+        if role_enabled(state, "ux-researcher") and os.path.exists(p("1-spec/ux-contract.md")):
+            ux = read(p("1-spec/ux-contract.md"))
+            # "Intuitive" is not checkable; a number is. The template ships with none on purpose.
+            bars = re.findall(r"(?<![\w-])\d+(?![\w-])", ux)
+            r.add("completion bars are numeric", bool(bars),
+                  "%d numeric bar(s)" % len(bars) if bars
+                  else "no number anywhere — state max steps and max required fields as figures")
+
+        if role_enabled(state, "content-strategist") and os.path.exists(p("1-spec/content-contract.md")):
+            cc = read(p("1-spec/content-contract.md"))
+            # The string table is the deliverable. Principles with no strings get ignored by every
+            # Worker who needs a button label.
+            rows = [ln for ln in cc.splitlines()
+                    if ln.strip().startswith("|") and len(ln.split("|")) >= 4
+                    and not re.match(r"^\s*\|[\s:|-]+\|\s*$", ln)]
+            body_rows = [ln for ln in rows if len([c for c in ln.strip().strip("|").split("|")
+                                                   if c.strip()]) >= 3]
+            r.add("copy strings written", len(body_rows) >= 3,
+                  "%d table row(s) filled" % len(body_rows) if len(body_rows) >= 3
+                  else "the string table is the deliverable — %d filled row(s)" % len(body_rows))
 
     elif gate == "g2":
         tasks = state.get("tasks", {})
@@ -1231,6 +1446,10 @@ def gate_checks(gate, state):
             secs = artifacts_in("3-verify/qa", "SEC-")
             r.add("adversary pass recorded", bool(secs),
                   "%d SEC report(s)" % len(secs) if secs else "no SEC-###.md in 3-verify/qa", "1")
+        if role_enabled(state, "ui-critic"):
+            uis = artifacts_in("3-verify/qa", "UI-")
+            r.add("ui critique recorded", bool(uis),
+                  "%d UI report(s)" % len(uis) if uis else "no UI-###.md in 3-verify/qa")
         if role_enabled(state, "product-owner"):
             pos = artifacts_in("3-verify/verdicts", "PO-")
             r.add("business acceptance recorded", bool(pos),
@@ -1321,9 +1540,11 @@ def main():
     p.add_argument("--list", action="store_true", help="show the roster and what is enabled")
     p.add_argument("--recommend", action="store_true",
                    help="propose a set from the shape of this project")
-    p.add_argument("--preset", help="core (5), standard (8) or full (12)")
+    p.add_argument("--preset", help="core (5), standard (8), product (12), growth (15), full (18)")
     p.add_argument("--enable", help="comma-separated role keys to turn on")
     p.add_argument("--disable", help="comma-separated role keys to turn off")
+    p.add_argument("--vertical",
+                   help="the Domain Analyst's vertical, or 'list' to see the options")
     p.add_argument("--confirm", action="store_true",
                    help="accept the current set as a deliberate choice")
     p.set_defaults(fn=cmd_roles)

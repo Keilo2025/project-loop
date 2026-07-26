@@ -146,7 +146,7 @@ The two are independent; installing both is fine, and a project-scoped copy wins
 /plugin install project-loop@project-loop
 ```
 
-This brings the skill and twelve bundled subagents, each with its own context window, which is the
+This brings the skill and eighteen bundled subagents, each with its own context window, which is the
 strongest form of the isolation the design needs. Five are enabled by default; the loop asks at the
 start which of the other seven this project needs.
 

@@ -57,6 +57,7 @@ The loop writes and reads exactly this. Nothing else is loop state.
 ├── ledger.md              # append-only: decisions, deviations, escalations
 ├── 0-plan/
 │   ├── research.md        # what exists, what constrains us, what we chose
+│   ├── domain.md          # vertical table stakes, regimes, vocabulary  [Domain Analyst]
 │   ├── brd.md             # business requirements — outcomes and success measures
 │   ├── prd.md             # product specification — behaviour, EARS requirements
 │   ├── plan.md            # milestones with dates, ownership boundaries
@@ -67,17 +68,25 @@ The loop writes and reads exactly this. Nothing else is loop state.
 │   ├── security.md        # security contract — blocking rules
 │   ├── conventions.md     # THE MEMORY: conventions, reuse registry, bound decisions
 │   ├── qa-strategy.md     # what gets tested, how, and what counts as proof
-│   └── design-contract.md # tokens, states, a11y bar (only if there is a UI)
+│   ├── design-contract.md # tokens, states, a11y bar (only if there is a UI)
+│   ├── ux-contract.md     # segment, jobs, journeys with numeric bars  [UX Researcher]
+│   ├── content-contract.md# message hierarchy, voice bans, string table [Content Strategist]
+│   ├── seo-contract.md    # crawl, index, canonical, schema, CWV       [SEO Specialist]
+│   └── ai-readiness.md    # crawler grants, retrievability, agent use  [LLM Specialist]
 ├── 2-build/
 │   ├── tasks/TASK-###.md      # bounded scope, read-set, write-set, acceptance
 │   └── reports/TASK-###.report.md
 └── 3-verify/
     ├── qa/QA-###.md           # Tester findings, reproducible
     ├── qa/SEC-###.md          # Adversary findings (only if that role is enabled)
+    ├── qa/UI-###.md           # UI Critic findings (only if that role is enabled)
     ├── verdicts/V-###.md      # Judge verdict
     ├── verdicts/PO-###.md     # business acceptance (only if that role is enabled)
     └── rework/R-###.md        # numbered rework orders
 ```
+
+Files marked with a role in brackets exist only when that role is enabled. `loop.py roles --enable`
+seeds them; it never overwrites one that already has content.
 
 ## Roles and why they are separated
 
@@ -91,20 +100,27 @@ carries the separation is the **authority class**, not the persona:
 | **TEST** | findings in `3-verify/qa/` | fix what it finds; report a defect it cannot reproduce |
 | **JUDGE** | verdicts and orders in `3-verify/` | write or edit any source file; accept a claim without evidence |
 
-**Twelve roles are available, and five are on by default.** Each role belongs to exactly one class
+**Eighteen roles are available, and five are on by default.** Each role belongs to exactly one class
 and inherits its prohibitions whole — which is why the roster can grow without the permission model
 growing with it. No role ever holds two classes.
 
 | Class | Core role | Optional roles |
 |---|---|---|
-| PLAN | **Planner**, **Architect** | Analyst, Designer, Security Architect |
+| PLAN | **Planner**, **Architect** | Analyst, Domain Analyst, UX Researcher, Designer, Content Strategist, SEO Specialist†, LLM Specialist†, Security Architect |
 | CODE | **Worker** | Integrator, Scribe |
-| TEST | **Tester** | Adversary |
+| TEST | **Tester** | Adversary, UI Critic |
 | JUDGE | **Judge** | Product Owner |
 
 Turning an optional role off does not skip its work — the core role in the same class absorbs it,
 with less specialisation and a wider context. That is the actual trade, and it is the one to put to
-the human. Full briefs, read-sets and prohibitions: `references/roles.md`.
+the human.
+
+**† Two exceptions.** The SEO Specialist and LLM Specialist own rules no other role has any claim to
+— crawlability, indexation, crawler access grants, agent-usability. Nobody absorbs their contracts.
+Turning them off removes the work rather than moving it, which is correct for a CLI tool or a service
+behind auth and worth saying out loud for anything with a public surface.
+
+Full briefs, read-sets and prohibitions: `references/roles.md`.
 
 **Choose the set at loop start, before Phase 0 research.** `loop.py roles --recommend` reads the
 project shape and proposes a set; the human confirms or edits it; `G0 will not pass until it is
@@ -112,9 +128,14 @@ confirmed`, because a roster nobody chose is a roster nobody owns.
 
 ```bash
 python3 scripts/loop.py roles --recommend            # propose from the project
-python3 scripts/loop.py roles --preset standard      # core(5) | standard(8) | full(12)
+python3 scripts/loop.py roles --preset growth        # core 5 | standard 8 | product 12 | growth 15 | full 18
 python3 scripts/loop.py roles --enable designer,adversary
+python3 scripts/loop.py roles --enable domain-analyst --vertical proptech
+python3 scripts/loop.py roles --vertical list        # the 20 verticals with a reference section
 ```
+
+The Domain Analyst is the one role that is configured rather than merely enabled. Without a vertical
+it is a second Analyst at the same cost, so G0 checks for one.
 
 In Claude Code the roles map to bundled subagents (`project-loop:loop-planner` and so on), which
 gives each a genuinely separate context window. In other agents, or where subagents are
@@ -243,6 +264,10 @@ Load one of these when you reach the relevant point. Loading all of them defeats
 | `references/security-contract.md` | Writing `security.md`, or judging a security finding |
 | `references/craft-contract.md` | Writing `conventions.md`, judging craft, or before building anything new |
 | `references/design-contract.md` | Any task that produces UI |
+| `references/verticals.md` | You are the Domain Analyst — read your vertical's section only |
+| `references/ux-contract.md` | Writing `ux-contract.md`, or checking a journey against its bar |
+| `references/content-contract.md` | Writing `content-contract.md`, or judging shipped copy |
+| `references/discoverability-contract.md` | Writing `seo-contract.md` (Part A) or `ai-readiness.md` (Part B) |
 | `references/token-budget.md` | The loop feels expensive, or you are about to do a large read |
 | `references/portability.md` | Running outside Claude Code, or without subagents |
 

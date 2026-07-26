@@ -14,16 +14,16 @@ is derived from everything above it, and freezing it is the gate.
 
 ## 0.0 Choose the role set
 
-Before any research, decide who is running this loop. Twelve roles are available across four
+Before any research, decide who is running this loop. Eighteen roles are available across four
 authority classes; five are enabled by default. Full roster and briefs: `references/roles.md`.
 
 ```bash
 python3 scripts/loop.py roles --recommend
 ```
 
-The recommendation reads the shape of the project — UI files or UI language, auth and personal
-data, a deployment target, how many business requirements exist — and proposes a set with the
-signal that argued for each one. **It is a recommendation, not a decision.** Present it to the
+The recommendation reads the shape of the project — UI files or UI language, a named audience, auth
+and personal data, a public surface, regulated-vertical language, a deployment target, how many
+business requirements exist — and proposes a set with the signal that argued for each one. **It is a recommendation, not a decision.** Present it to the
 human with the trade stated plainly:
 
 > More roles catch more and cost more. Fewer roles do not skip the work — the core role in the
@@ -32,9 +32,10 @@ human with the trade stated plainly:
 Then apply what they choose:
 
 ```bash
-python3 scripts/loop.py roles --preset standard          # core(5) | standard(8) | full(12)
+python3 scripts/loop.py roles --preset growth             # core 5 | standard 8 | product 12 | growth 15 | full 18
 python3 scripts/loop.py roles --enable designer,adversary
-python3 scripts/loop.py roles --confirm                  # the core five are right here
+python3 scripts/loop.py roles --enable domain-analyst --vertical proptech
+python3 scripts/loop.py roles --confirm                   # the core five are right here
 ```
 
 The test for enabling an optional role is whether its output would change a verdict. A Designer
@@ -42,9 +43,17 @@ earns its place when the design contract is a gate somebody will actually fail a
 earn its place on a CLI tool. A role whose artifact nobody gates on makes the loop slower and more
 expensive without making it more correct.
 
-Enabling a role has teeth: with the Designer on, G1 requires `design-contract.md`; with the
-Adversary on, G3 requires a SEC report; with the Product Owner on, G3 requires business acceptance.
-That is the point — an optional role that changed no gate would be ceremony.
+Enabling a role has teeth: with the Designer on, G1 requires `design-contract.md`; with the UX
+Researcher on, G1 requires numeric completion bars; with the SEO or LLM Specialist on, G1 requires a
+stated check against every selected rule; with the Domain Analyst on, G0 requires a vertical and a
+dated domain brief; with the Adversary or UI Critic on, G3 requires their report; with the Product
+Owner on, G3 requires business acceptance. That is the point — an optional role that changed no gate
+would be ceremony.
+
+Two caveats to state honestly when presenting the set. **The Domain Analyst needs a vertical**
+(`--vertical list` shows them); without one it is a second Analyst at the same cost. **The SEO and
+LLM Specialists are unabsorbed** — no other role picks their work up, so leaving them off removes it
+rather than moving it.
 
 G0 will not pass until the set has been confirmed. The choice and its reason go into `ledger.md`
 automatically. Changing the roster later is allowed and is another ledger entry, not a silent edit.

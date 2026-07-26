@@ -65,24 +65,34 @@ out of date, open an issue — I would rather this table be accurate than flatte
 a full agile team across 12+ named agent personas, and it produces genuinely thorough
 documentation. It is also widely reported as the most expensive to run and takes weeks to learn.
 
-Project Loop also has twelve roles, and the difference is what they are for and when you pay for
-them. Three things separate the two:
+Project Loop also has a large roster — eighteen roles — and the difference is what they are for and
+when you pay for them. Three things separate the two:
 
 *Every optional role gates something.* Enable the Designer and G1 will not pass without a design
-contract. Enable the Adversary and G3 requires a security report. Enable the Product Owner and G3
-requires business acceptance against the BRD. A role that changed no gate would be ceremony, and
+contract. Enable the UX Researcher and G1 requires numeric completion bars rather than the word
+"intuitive". Enable the SEO or LLM Specialist and G1 requires a stated check against every rule they
+selected. Enable the Adversary or UI Critic and G3 requires their report. Enable the Product Owner and
+G3 requires business acceptance against the BRD. A role that changed no gate would be ceremony, and
 the rule for admitting one to the roster is that its output must be able to change a verdict.
 
 *Authority is a class, not a persona.* Four classes — PLAN, CODE, TEST, JUDGE — carry every
-read-set and prohibition, and each role belongs to exactly one. Going from five roles to twelve
-added seven briefs and zero permission rules, which is why the roster can keep growing without the
-model of who-may-do-what getting harder to reason about.
+read-set and prohibition, and each role belongs to exactly one. Going from five roles to eighteen
+added thirteen briefs and zero permission rules, which is why the roster can keep growing without the
+model of who-may-do-what getting harder to reason about. The specialist roles added most recently — a
+vertical Domain Analyst, UX Researcher, Content Strategist, SEO Specialist, LLM Specialist, UI
+Critic — cost six new briefs and changed nothing structural.
 
-*You pay for the roster you chose.* Five roles are on by default; the loop asks at the start which
-of the other seven this project needs and recommends a set from the shape of the code and the plan.
-A CLI tool runs with five. A regulated payments build runs with twelve. Turning a role off does not
-skip its work — the core role in the same class absorbs it, with less specialisation and a wider
-context — so the choice is about how carefully something is done, not whether it happens.
+*You pay for the roster you chose.* Five roles are on by default; the loop asks at the start which of
+the other thirteen this project needs and recommends a set from the shape of the code and the plan. A
+CLI tool runs with five. A public platform that has to be found and cited runs with fifteen. A
+regulated payments build runs with eighteen. Turning a role off usually does not skip its work — the
+core role in the same class absorbs it, with less specialisation and a wider context — so the choice is
+about how carefully something is done, not whether it happens.
+
+*And where that last claim is false, the framework says so.* Two roles are marked `unabsorbed`: the
+SEO and LLM Specialists own rules no other role has any claim to, so disabling them removes the work
+rather than moving it. `loop.py roles --list` prints that warning rather than letting a convenient
+generalisation stand.
 
 Where BMAD still wins: large regulated greenfield programmes with many humans who need the
 ceremony, and rich documentation as a deliverable in its own right rather than as a by-product.

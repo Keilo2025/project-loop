@@ -146,6 +146,36 @@ expensive to fix at the end than to prevent at the start.
 
 ---
 
+## 1.7 Optional contracts, when their role is enabled
+
+Four more contracts live in `1-spec/`, each owned by an optional PLAN role. Run
+`loop.py roles --list` before writing anything here — **writing over an enabled role's artifact is a
+collision, not thoroughness**, and it is the most likely way this phase goes wrong now that the
+roster is larger.
+
+| File | Role | Reference | If the role is off |
+|---|---|---|---|
+| `ux-contract.md` | UX Researcher | `references/ux-contract.md` | The Designer covers experience thinly alongside the visual contract |
+| `content-contract.md` | Content Strategist | `references/content-contract.md` | Copy is improvised per component by whichever Worker got there first |
+| `seo-contract.md` | SEO Specialist | `references/discoverability-contract.md` Part A | **Nobody writes it.** The rules are absent, not delegated |
+| `ai-readiness.md` | LLM Specialist | `references/discoverability-contract.md` Part B | **Nobody writes it.** Same |
+
+**Order matters within the phase.** UX contract before design contract, because tokens chosen against
+the wrong journey get rewritten. Content contract before the SEO and AI-readiness contracts, because
+both depend on content shape and neither owns the words.
+
+**Every rule in every one of these carries a stated check**, exactly as in `security.md`. A design,
+UX, content, SEO or AI-readiness rule that names no check cannot be judged, will not be enforced, and
+exists only to make the document look thorough. `loop.py gate g1 --check` asserts the mechanical half
+of this per contract.
+
+Two of these contracts have a trap worth naming. The SEO contract should not become a keyword plan —
+if a line changes no build decision it belongs in the ledger. The AI-readiness contract should not
+become a cargo-cult `llms.txt` recommendation — verify what is actually consumed before making
+anything blocking.
+
+---
+
 ## Gate G1
 
 No human required by default, but the checklist is not optional. `loop.py gate g1 --check` runs
@@ -160,6 +190,8 @@ the mechanical parts; the rest is judgement.
 - [ ] Foundation build order is explicit
 - [ ] `conventions.md` sections 1 and 3 are written and specific
 - [ ] Design contract exists if there is a UI
+- [ ] Every enabled optional PLAN role's contract exists, and every rule in it has a stated check
+- [ ] No enabled role's artifact was written by a different role
 - [ ] Test commands are written verbatim
 - [ ] No component is responsible for two unrelated things
 

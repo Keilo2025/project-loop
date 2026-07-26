@@ -107,8 +107,32 @@ UI tasks only. Every required state present, keyboard traversal complete, focus 
 measured, behaviour correct at the narrowest supported width, motion respecting the reduced-motion
 preference, tokens used instead of literal values.
 
-Fail → `REWORK`, Sev-3 by default, Sev-2 where the DoD makes accessibility blocking. It usually
-should.
+When the UI Critic is enabled, `3-verify/qa/UI-###.md` is part of your evidence set and covers the
+anti-generic bans, real-data stress and design-anchor consistency. Read it rather than re-deriving
+it. Where the Critic recorded an **observation** rather than a finding, that is a gap in the design
+contract, not a defect in the code — cause `spec`, routed to the Designer, and it is not a rework
+order against the Worker.
+
+## Check 8b — UX, content, SEO and AI-readiness contracts
+
+Only the ones whose role is enabled. Each is graded the same way as the security contract: **against
+the check the rule itself declares.** You do not invent a bar, and you do not grade against your own
+taste in any of these four areas.
+
+| Contract | What a failure looks like | Default severity |
+|---|---|---|
+| `ux-contract.md` | A journey exceeds its stated step or field bar; a listed failure state has no implemented recovery | Sev-2 |
+| `content-contract.md` | Placeholder text shipped; a banned register term present; a claim with no evidence; a string over its ceiling | Sev-2 for placeholder or an unevidenced claim, Sev-3 otherwise |
+| `seo-contract.md` | A blocking rule's check fails — content absent from the initial HTML, a missing page returning 200, staging indexable | Sev-2, Sev-1 where a non-public surface became indexable |
+| `ai-readiness.md` | A blocking rule's check fails; the crawler grant in `robots.txt` contradicts the recorded decision | Sev-2, Sev-1 where the grant contradicts the decision |
+
+Three things earn Sev-1 in this check regardless of how well the rest went, because each is a
+deliberate misrepresentation rather than a defect: **content served differently to crawlers than to
+users**, **structured data or metadata describing text a user cannot see**, and **a fabricated
+statistic, quotation or source in shipped content**. The last one is a real risk precisely because
+"add figures and quotations" is the highest-leverage content technique and inventing them is the
+cheapest way to satisfy it. Sample the claims, follow one source, and treat an unfollowable citation
+as fabricated until shown otherwise.
 
 ## Check 9 — Regression
 

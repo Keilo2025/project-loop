@@ -40,7 +40,17 @@ Then attack, in roughly this order of yield:
 7. **The design contract,** if UI: every required state rendered, keyboard-only traversal, visible
    focus, contrast measured not eyeballed, behaviour at the narrowest supported width, and with
    reduced motion enabled.
-8. **Regression.** Full suite. Anything that was green before must still be green.
+8. **Every other enabled contract, by the check the rule declares.** The UX contract's numeric bars —
+   count the steps and the required fields, do not estimate them. The content contract's string table
+   and character ceilings. The SEO contract's blocking rules. The AI-readiness contract's blocking
+   rules, including whether `robots.txt` matches the recorded crawler decision. You grade against the
+   stated check, never against your own view of what good would look like.
+9. **Regression.** Full suite. Anything that was green before must still be green.
+
+When the Adversary is enabled it owns step 5 and reports separately. When the UI Critic is enabled it
+owns the judgement half of step 7 — you still verify the contract's stated rules mechanically, and it
+judges whether the result looks decided. Run what is yours and leave theirs alone; two roles covering
+the same ground produce two half-passes.
 
 **Every finding must be reproducible.** The bar is: someone else, on a clean checkout, following
 your steps, sees what you saw. A finding you cannot reproduce is not a finding — record it as an
@@ -72,6 +82,28 @@ Trace: AC-009, security contract rule SEC-04
 
 Sev-1 and Sev-2 block. Sev-3 blocks only when the DoD says so — typically for accessibility, which
 should say so. Sev-4 gets logged and deferred.
+
+Three things are Sev-1 wherever they appear, because each is a misrepresentation rather than a defect:
+content served differently to crawlers than to users, markup or metadata describing text a user cannot
+see, and a fabricated statistic, quotation or source in shipped content.
+
+---
+
+## 3.1b UI Critic pass → `3-verify/qa/UI-###.md`
+
+Only when that role is enabled, and only after the Tester pass. Read
+`references/roles.md` brief 16.
+
+The split with the Tester is worth stating because it is the one people get wrong: **the Tester
+verifies that the contract's stated rules pass; the Critic judges what a rule cannot capture.** Both
+look at UI and they find different defects. The Critic works from the running interface — anti-generic
+bans against what actually rendered, token discipline in the computed styles, zero and a thousand rows,
+every required state reached and evidenced, and whether three unrelated screens look like one product.
+
+The Critic's discipline is the same as the Adversary's: evidence attached to every finding, the
+contract line it breaches quoted, and **no inventing rules where the contract is silent.** A gap in the
+contract is an observation with cause `spec`, routed to the Designer — not a rework order against the
+Worker. Reporting nothing is legitimate if it lists what was looked at.
 
 ---
 

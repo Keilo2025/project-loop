@@ -6,7 +6,72 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+**Six specialist roles, taking the roster from twelve to eighteen.** The authority model is unchanged
+— every new role belongs to exactly one existing class and inherits its prohibitions whole, which is
+the property that let the roster grow without the permission model growing with it.
+
+| Role | Class | Owns | Phase |
+|---|---|---|---|
+| Domain Analyst | PLAN | `0-plan/domain.md` | 0 |
+| UX Researcher | PLAN | `1-spec/ux-contract.md` | 1 |
+| Content Strategist | PLAN | `1-spec/content-contract.md` | 1 |
+| SEO Specialist | PLAN | `1-spec/seo-contract.md` | 1 |
+| LLM Specialist | PLAN | `1-spec/ai-readiness.md` | 1 |
+| UI Critic | TEST | `3-verify/qa/UI-###.md` | 3 |
+
+**The Domain Analyst is configured, not just enabled.** `loop.py roles --enable domain-analyst
+--vertical proptech` sets its specialisation; `--vertical list` shows the twenty verticals that have a
+section in the new `references/verticals.md` — fintech, healthtech, proptech, agritech, regtech,
+insurtech, legaltech, edtech, climatetech, martech, hrtech, logistics, govtech, defencetech, commerce,
+wealthtech, cybersecurity, biotech, traveltech, foodtech, plus `other`. G0 fails without a vertical,
+because a Domain Analyst without a domain is a second Analyst at the same cost.
+
+**Two roles are marked `unabsorbed`.** Every other optional role hands its artifact to the core role
+in its class when disabled. The SEO Specialist and LLM Specialist do not — no existing role's remit
+covers crawlability, indexation control, crawler access grants or agent-usability. Disabling them
+removes the work rather than moving it, and `loop.py roles --list` now says so rather than letting the
+"nothing is skipped" claim stand where it is false.
+
+**Two new presets.** `product` (12) adds the experience roles for real-user product work; `growth`
+(15) adds the discoverability and content roles for a public platform. `core` (5), `standard` (8) and
+`full` (18) are unchanged in intent.
+
+**Four new reference contracts.** `verticals.md`, `ux-contract.md`, `content-contract.md`, and
+`discoverability-contract.md` — the last split into Part A for search and Part B for AI readiness.
+Part B leads with what is actually known rather than the usual advice: `llms.txt` is a community
+convention that most AI crawlers do not fetch and no major provider has committed to reading, no file
+or markup buys citation, and the interventions with published effect sizes are attributable quotations
+and verifiable figures. Verified July 2026 and dated in the file, because this is the fastest-moving
+area in the framework.
+
+**New gate checks, all mechanical.** G0 requires a vertical and a dated domain brief when the Domain
+Analyst is on. G1 requires each enabled optional PLAN role's contract, a stated check against every
+selected SEO and AI-readiness rule, a filled crawler-access grant, numeric completion bars in the UX
+contract, and a non-empty string table in the content contract. G3 requires a UI report when the
+Critic is on. Enabling a role that changed no gate would be ceremony.
+
+**Judge rubric check 8b.** Grades the UX, content, SEO and AI-readiness contracts against the check
+each rule declares — never against the Judge's own taste. Three findings are Sev-1 wherever they
+appear, because each is a misrepresentation rather than a defect: content served differently to
+crawlers than to users, markup describing text a user cannot see, and a fabricated statistic,
+quotation or source. The last is called out explicitly because "add figures and quotations" is the
+highest-leverage content technique and inventing them is the cheapest way to satisfy it.
+
+### Changed
+
+- `loop.py roles --recommend` detects seven more signals: a named audience, a public surface, AI or
+  agent language, content and messaging work, and regulated-vertical vocabulary.
+- Enabling an optional PLAN role seeds its contract template. It never overwrites a file that already
+  has content.
+- Anti-collusion rules gain three entries: the unabsorbed exception stated plainly, "every contract's
+  rules carry a stated check" generalised beyond `security.md`, and a prohibition on one PLAN role
+  writing another's artifact.
+- The Tester's order of attack now ends at the other enabled contracts, and the Tester/UI Critic split
+  is stated explicitly — the Tester verifies stated rules, the Critic judges what a rule cannot capture.
+- Phase 1 gains section 1.7 with the intra-phase ordering rule: UX contract before design contract,
+  content contract before the SEO and AI-readiness contracts.
 
 ## [1.0.0] — 2026-07-26
 

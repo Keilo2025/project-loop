@@ -28,7 +28,7 @@ broken.
 
 ## Subagents, and running without them
 
-Claude Code ships all twelve roles as bundled subagents, each with its own context window. That is
+Claude Code ships all eighteen roles as bundled subagents, each with its own context window. That is
 the strongest form of the isolation the design depends on: a Judge that has never seen the
 Worker's reasoning cannot be persuaded by it.
 
