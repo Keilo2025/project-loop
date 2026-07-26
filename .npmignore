@@ -1,0 +1,12 @@
+__pycache__/
+**/__pycache__/**
+*.pyc
+plugins/project-loop/skills/project-loop/scripts/__pycache__/
+plugins/project-loop/skills/project-loop/scripts/__pycache__/*
+.DS_Store
+.venv/
+node_modules/
+*.tgz
+npm-debug.log*
+package-lock.json
+DECOY.md

@@ -48,6 +48,8 @@
   "scripts": {
     "test": "node test/cli.test.js",
     "lint": "node --check bin/project-loop.js && node --check cli/index.js && node --check cli/install.js && node --check cli/prompts.js && node --check cli/targets.js && node --check cli/config.js",
+    "clean": "find . \\( -name node_modules -o -name .git \\) -prune -o -name '__pycache__' -print0 2>/dev/null | xargs -0 rm -rf; find . -name '*.pyc' -delete 2>/dev/null; true",
+    "prepack": "npm run clean",
     "prepublishOnly": "npm run lint && npm test"
   },
   "engines": {

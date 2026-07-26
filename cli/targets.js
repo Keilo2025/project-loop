@@ -39,7 +39,7 @@ const TARGETS = {
     },
     notes: {
       project: 'project scope loads only after you accept the workspace trust prompt',
-      user: 'alternative route: /plugin marketplace add Keilo2025/Project-Look-Skills-',
+      user: 'alternative route: /plugin marketplace add Keilo2025/project-loop',
     },
   },
 
