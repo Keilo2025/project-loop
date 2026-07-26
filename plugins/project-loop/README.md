@@ -1,0 +1,17 @@
+# project-loop (plugin)
+
+The plugin package. Full documentation is in the [repository root](../../README.md).
+
+```
+plugins/project-loop/
+├── .claude-plugin/plugin.json
+├── agents/                     five roles as Claude Code subagents
+└── skills/project-loop/
+    ├── SKILL.md                router, state machine, gates
+    ├── references/             phases, roles, rubrics, contracts
+    ├── templates/              per-task artifacts
+    └── scripts/loop.py         state machine and deterministic checks
+```
+
+Install: `/plugin marketplace add Keilo2025/Project-Look-Skills-` then
+`/plugin install project-loop@project-loop`.

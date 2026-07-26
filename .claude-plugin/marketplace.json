@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "project-loop",
+  "version": "1.0.0",
+  "description": "Closed-loop, evidence-gated build system for AI coding agents. A Judge holds the exit gate.",
+  "owner": {
+    "name": "Christian Buchholz",
+    "url": "https://github.com/Keilo2025"
+  },
+  "plugins": [
+    {
+      "name": "project-loop",
+      "description": "Plan, Spec, Build, Verify. A separate Judge role grades evidence and issues rework orders until the frozen Definition of Done is met. Security and design contracts are blocking gates, not advice.",
+      "source": "./plugins/project-loop",
+      "category": "development",
+      "keywords": ["spec-driven", "agent-loop", "qa", "security", "verification", "orchestration"]
+    }
+  ]
+}

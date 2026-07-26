@@ -1,0 +1,24 @@
+---
+description: Project Loop — closed-loop build system with a Judge that holds the exit gate. Pull this in for any multi-step build, feature, MVP, or when a .loop/ directory exists in the workspace.
+alwaysApply: false
+---
+
+# Project Loop
+
+The full method lives in the skill at `.cursor/skills/project-loop/SKILL.md`. Read it rather than
+working from this summary — this file exists to make the agent aware the loop is available, and is
+kept short deliberately, because rules cost tokens on every request they load into.
+
+Working rules, in force whenever the loop is running:
+
+1. **You may not declare the project complete.** Only a Judge verdict of `PASS` closes the loop.
+2. **Check state first.** Run `python3 .cursor/skills/project-loop/scripts/loop.py status` before
+   doing anything. Never reconstruct state by reading the repo or scrolling the conversation.
+3. **Phases are gated.** Plan → Spec → Build → Verify. Do not start building before the spec
+   exists and gate G1 passes.
+4. **Every task delivers a REPORT** with the exact commands run and their output. No report means
+   automatic rework.
+5. **Never modify a test to make the suite pass.** Detected automatically; treated as Sev-1.
+6. **Never edit files outside a task's declared write-set.** Request a scope amendment instead.
+7. **The Definition of Done is frozen at G0.** Any change after that is scope drift and needs a
+   human decision.

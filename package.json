@@ -1,0 +1,61 @@
+{
+  "name": "project-loop",
+  "version": "1.0.0",
+  "description": "Closed-loop, evidence-gated build system for AI coding agents. Plan, Spec, Build, Verify — with a separate Judge role that holds the exit gate and issues rework orders until the frozen Definition of Done is met.",
+  "keywords": [
+    "spec-driven-development",
+    "agent-loop",
+    "claude-code",
+    "codex",
+    "cursor",
+    "agent-skills",
+    "verification",
+    "qa",
+    "security",
+    "orchestration",
+    "definition-of-done",
+    "cli"
+  ],
+  "homepage": "https://github.com/Keilo2025/Project-Look-Skills-#readme",
+  "bugs": {
+    "url": "https://github.com/Keilo2025/Project-Look-Skills-/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Keilo2025/Project-Look-Skills-.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Christian Buchholz"
+  },
+  "type": "commonjs",
+  "bin": {
+    "project-loop": "bin/project-loop.js",
+    "ploop": "bin/project-loop.js"
+  },
+  "main": "cli/index.js",
+  "files": [
+    "bin/",
+    "cli/",
+    "plugins/",
+    "adapters/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node test/cli.test.js",
+    "lint": "node --check bin/project-loop.js && node --check cli/index.js && node --check cli/install.js && node --check cli/prompts.js && node --check cli/targets.js && node --check cli/config.js",
+    "prepublishOnly": "npm run lint && npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}

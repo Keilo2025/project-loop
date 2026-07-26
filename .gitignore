@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+node_modules/
+
+# npm build output
+*.tgz
+npm-debug.log*
+
+# Zero dependencies means there is nothing for a lockfile to pin.
+package-lock.json
+
+# .loop/ is deliberately NOT ignored — it is the audit trail and it should be committed.

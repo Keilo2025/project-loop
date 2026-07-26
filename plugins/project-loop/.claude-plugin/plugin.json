@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "project-loop",
+  "displayName": "Project Loop",
+  "version": "1.0.0",
+  "description": "Closed-loop, evidence-gated build system. Plan, Spec, Build, Verify, with a Judge that holds the exit gate and issues rework orders until the frozen Definition of Done is met.",
+  "author": {
+    "name": "Christian Buchholz"
+  },
+  "homepage": "https://github.com/Keilo2025/Project-Look-Skills-",
+  "repository": "https://github.com/Keilo2025/Project-Look-Skills-",
+  "license": "MIT",
+  "keywords": [
+    "spec-driven-development",
+    "agent-loop",
+    "verification",
+    "qa",
+    "security",
+    "orchestration",
+    "definition-of-done"
+  ]
+}
