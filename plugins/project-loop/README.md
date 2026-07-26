@@ -13,5 +13,5 @@ plugins/project-loop/
     └── scripts/loop.py         state machine and deterministic checks
 ```
 
-Install: `/plugin marketplace add Keilo2025/Project-Look-Skills-` then
+Install: `/plugin marketplace add Keilo2025/project-loop` then
 `/plugin install project-loop@project-loop`.

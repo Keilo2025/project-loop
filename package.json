@@ -16,13 +16,13 @@
     "definition-of-done",
     "cli"
   ],
-  "homepage": "https://github.com/Keilo2025/Project-Look-Skills-#readme",
+  "homepage": "https://github.com/Keilo2025/project-loop#readme",
   "bugs": {
-    "url": "https://github.com/Keilo2025/Project-Look-Skills-/issues"
+    "url": "https://github.com/Keilo2025/project-loop/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Keilo2025/Project-Look-Skills-.git"
+    "url": "git+https://github.com/Keilo2025/project-loop.git"
   },
   "license": "MIT",
   "author": {

@@ -142,7 +142,7 @@ The two are independent; installing both is fine, and a project-scoped copy wins
 ### Claude Code plugin marketplace
 
 ```bash
-/plugin marketplace add Keilo2025/Project-Look-Skills-
+/plugin marketplace add Keilo2025/project-loop
 /plugin install project-loop@project-loop
 ```
 
@@ -155,8 +155,8 @@ The original bash installer still works and behaves identically. It has no Node 
 matters if you are installing onto a machine that does not have it.
 
 ```bash
-git clone https://github.com/Keilo2025/Project-Look-Skills-.git
-cd Project-Look-Skills-
+git clone https://github.com/Keilo2025/project-loop.git
+cd project-loop
 ./scripts/install.sh --target claude          # or codex, cursor, all
 ./scripts/install.sh --target all --scope project
 ./scripts/install.sh --target all --uninstall

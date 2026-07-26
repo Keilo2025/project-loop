@@ -105,7 +105,7 @@ things that actually go wrong, in the order they go wrong.
 ### Marketplace (recommended)
 
 ```
-/plugin marketplace add Keilo2025/Project-Look-Skills-
+/plugin marketplace add Keilo2025/project-loop
 /plugin install project-loop@project-loop
 ```
 
@@ -122,7 +122,7 @@ For a team, install at project scope so it travels with the repository:
 From the command line rather than a session:
 
 ```bash
-claude plugin marketplace add Keilo2025/Project-Look-Skills-
+claude plugin marketplace add Keilo2025/project-loop
 claude plugin install project-loop@project-loop
 claude plugin list
 ```
@@ -130,7 +130,7 @@ claude plugin list
 ### Without a marketplace
 
 ```bash
-git clone https://github.com/Keilo2025/Project-Look-Skills-.git
+git clone https://github.com/Keilo2025/project-loop.git
 cd project-loop
 ./scripts/install.sh --target claude              # ~/.claude/
 ./scripts/install.sh --target claude --scope project   # ./.claude/

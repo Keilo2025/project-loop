@@ -31,7 +31,7 @@ would rather it be accurate than flattering.
 ## Working on it
 
 ```bash
-git clone https://github.com/Keilo2025/Project-Look-Skills-.git
+git clone https://github.com/Keilo2025/project-loop.git
 cd project-loop
 ./scripts/install.sh --target claude --scope project --dry-run
 python3 -m py_compile plugins/project-loop/skills/project-loop/scripts/loop.py
