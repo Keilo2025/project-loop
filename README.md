@@ -118,11 +118,11 @@ project-loop install --target all --scope user --dry-run     # show the plan, wr
 |---|---|
 | `project-loop` | interactive install |
 | `project-loop install` | install, promptless when fully flagged |
-| `project-loop uninstall` | remove the skill and subagents, never touches `loop-project/` |
+| `project-loop uninstall` | remove the skill and subagents, never touches `/loop-project` |
 | `project-loop status` | every place it is installed, plus loop state here |
 | `project-loop config` | view, change or `--reset` saved defaults |
 | `project-loop doctor` | checks `python3`, `git`, payload integrity, install paths |
-| `project-loop init` | scaffold `loop-project/` in the current directory |
+| `project-loop init` | scaffold `/loop-project` in the current directory |
 
 | Flag | Values | Default |
 |---|---|---|
@@ -146,8 +146,9 @@ The two are independent; installing both is fine, and a project-scoped copy wins
 /plugin install project-loop@project-loop
 ```
 
-This brings the skill and five bundled subagents — Planner, Architect, Worker, Tester, Judge —
-each with its own context window, which is the strongest form of the isolation the design needs.
+This brings the skill and twelve bundled subagents, each with its own context window, which is the
+strongest form of the isolation the design needs. Five are enabled by default; the loop asks at the
+start which of the other seven this project needs.
 
 ### From a clone, via the shell installer
 
@@ -199,7 +200,7 @@ python3 <skill>/scripts/loop.py verify TASK-001
 python3 <skill>/scripts/loop.py cycle TASK-001 --finding missing-authz
 ```
 
-Everything the loop knows lives in `loop-project/` as Markdown plus one JSON file. Commit it. A build can
+Everything the loop knows lives in `/loop-project` as Markdown plus one JSON file. Commit it. A build can
 be started in Claude Code and finished in Codex, or picked up by a colleague three weeks later,
 with no conversation history at all — which is the point.
 
@@ -208,7 +209,7 @@ with no conversation history at all — which is the point.
 ## What it produces
 
 ```
-loop-project/
+/loop-project
 ├── loop.json              phase, cursor, cycle counts, frozen DoD hash
 ├── ledger.md              append-only: decisions, deviations, escalations
 ├── 0-plan/                research, BRD, EARS product spec, milestones, frozen DoD

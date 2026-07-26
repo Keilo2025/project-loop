@@ -1,7 +1,7 @@
 # Design contract
 
 For any project with a user interface. The Architect instantiates this in
-`loop-project/1-spec/design-contract.md` during Phase 1, and the Judge enforces it at check 7.
+`/loop-project/1-spec/design-contract.md` during Phase 1, and the Judge enforces it at check 7.
 
 It is a contract rather than a style guide because the failure it prevents is specific and
 expensive: UI that satisfies every functional acceptance criterion and is still obviously

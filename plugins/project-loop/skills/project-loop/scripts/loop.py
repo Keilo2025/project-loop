@@ -7,8 +7,12 @@ cost model tokens, and a script asserts them more reliably.
 
 Python 3.8+, standard library only, no network access.
 
-  loop.py init [--brownfield]      scaffold loop-project/
+  loop.py init [--brownfield]      scaffold /loop-project
   loop.py status                   compact state summary (run this first, every session)
+  loop.py roles --list             show the 12 roles, their class, and what is enabled
+  loop.py roles --recommend        propose a role set from the shape of this project
+  loop.py roles --preset standard  apply core (5), standard (8) or full (12)
+  loop.py roles --enable designer  turn individual roles on or off (--disable too)
   loop.py task new "<title>"       create the next TASK card
   loop.py task list                list tasks and their state
   loop.py reuse "currency format"  search registry + tree BEFORE building anything new
@@ -37,6 +41,47 @@ LEDGER = os.path.join(LOOP_DIR, "ledger.md")
 
 PHASES = ["0-plan", "1-spec", "2-build", "3-verify"]
 GATES = ["g0", "g1", "g2", "g3"]
+
+# Four authority classes. A role belongs to exactly one and inherits its prohibitions whole,
+# which is why the roster can grow to twelve without the permission model growing at all.
+CLASSES = {
+    "PLAN": "writes specification artifacts; never source code, never a verdict",
+    "CODE": "writes source inside a declared write-set; never judges its own output",
+    "TEST": "executes and reproduces; never fixes what it finds",
+    "JUDGE": "grades evidence; never writes source",
+}
+
+# key -> (display name, class, artifact owned, is core, why you would enable it)
+# Order matters: it is the display order, and it groups by class.
+ROLES = {
+    "analyst": ("Analyst", "PLAN", "0-plan/research.md", False,
+                "unfamiliar domain, fast-moving stack, or constraints nobody has checked"),
+    "planner": ("Planner", "PLAN", "0-plan/brd,prd,plan,dod.md", True, ""),
+    "architect": ("Architect", "PLAN", "1-spec/architecture,interfaces,conventions.md + tasks", True, ""),
+    "designer": ("Designer", "PLAN", "1-spec/design-contract.md", False,
+                 "the project has a UI a human will look at"),
+    "security-architect": ("Security Architect", "PLAN", "1-spec/security.md", False,
+                           "auth, personal data, payments, uploads or third-party input"),
+    "worker": ("Worker", "CODE", "application source in its write-set", True, ""),
+    "integrator": ("Integrator", "CODE", "build, CI, migrations, deploy plumbing", False,
+                   "the build has to run somewhere other than this machine"),
+    "scribe": ("Scribe", "CODE", "README.md and user-facing docs", False,
+               "someone other than the author will have to run this"),
+    "tester": ("Tester", "TEST", "3-verify/qa/QA-###.md", True, ""),
+    "adversary": ("Adversary", "TEST", "3-verify/qa/SEC-###.md", False,
+                  "a security rule is blocking and somebody should try to break it"),
+    "judge": ("Judge", "JUDGE", "3-verify/verdicts/V-###.md + rework/R-###.md", True, ""),
+    "product-owner": ("Product Owner", "JUDGE", "3-verify/verdicts/PO-###.md", False,
+                      "a stakeholder cares whether the outcome moved, not just whether it shipped"),
+}
+
+CORE_ROLES = [k for k, v in ROLES.items() if v[3]]
+
+PRESETS = {
+    "core": list(CORE_ROLES),
+    "standard": CORE_ROLES + ["analyst", "designer", "adversary"],
+    "full": list(ROLES),
+}
 
 REPORT_SECTIONS = [
     "Summary",
@@ -177,6 +222,21 @@ def is_test_path(path):
     return any(h in low for h in TEST_PATH_HINTS)
 
 
+def enabled_roles(state):
+    """Roles active for this loop, in roster order.
+
+    A loop created before role selection existed has no 'roles' key. It gets the core five,
+    which is exactly how it already behaved — an old loop must never change shape because the
+    tool was upgraded underneath it.
+    """
+    names = (state.get("roles") or {}).get("enabled") or CORE_ROLES
+    return [k for k in ROLES if k in names]
+
+
+def role_enabled(state, key):
+    return key in enabled_roles(state)
+
+
 class Result:
     def __init__(self):
         self.rows = []
@@ -243,6 +303,8 @@ def cmd_init(args):
         "cursor": "0.1 research",
         "brownfield": bool(args.brownfield),
         "human_gates": ["g0"],
+        "roles": {"enabled": list(CORE_ROLES), "preset": "core",
+                  "selected": False, "selected_at": None},
         "gates": {g: {"passed": False, "at": None} for g in GATES},
         "dod_hash": None,
         "tasks": {},
@@ -251,9 +313,14 @@ def cmd_init(args):
     save_state(state)
     ledger("Loop initialised (%s)." % ("brownfield" if args.brownfield else "greenfield"))
 
-    print("Initialised loop-project/")
-    print("Phase 0. Next: research.md, then brd.md, prd.md, plan.md, dod.md.")
+    print("Initialised /loop-project")
+    print("Phase 0. First choose the role set, then research.md, brd.md, prd.md, plan.md, dod.md.")
+    print("")
+    print("Roles: 12 available, the core 5 enabled by default. Run 'loop.py roles --recommend',")
+    print("put the result to the human, then apply it. G0 will not pass until the set is confirmed,")
+    print("because a roster nobody chose is a roster nobody owns.")
     if args.brownfield:
+        print("")
         print("Brownfield: survey the existing repo into 0-plan/research.md before writing requirements.")
     return 0
 
@@ -270,12 +337,21 @@ def cmd_status(args):
     tasks = state.get("tasks", {})
     open_tasks = [t for t, v in tasks.items() if v.get("verdict") != "PASS"]
 
+    rstate = state.get("roles") or {}
+    active = enabled_roles(state)
+
     print("phase:   %d (%s)" % (state["phase"], PHASES[state["phase"]]))
     print("status:  %s" % state["status"])
     print("cursor:  %s" % state.get("cursor", "-"))
     print("gates:   %s" % " ".join(
         "%s=%s" % (g, "pass" if state["gates"][g]["passed"] else "-") for g in GATES))
+    print("roles:   %d enabled (%s)%s" % (
+        len(active), rstate.get("preset", "core"),
+        "" if rstate.get("selected") else "  -- default, not yet confirmed"))
     print("tasks:   %d total, %d open" % (len(tasks), len(open_tasks)))
+
+    if not rstate.get("selected") and state["status"] != "BLOCKED":
+        print("\nRole set has not been chosen. Run: loop.py roles --recommend")
 
     if state["status"] == "BLOCKED":
         print("\nBLOCKED: %s" % state.get("blocked_reason", "see ledger.md"))
@@ -297,6 +373,157 @@ def cmd_status(args):
     return 0
 
 
+# --------------------------------------------------------------------------- roles
+
+def split_keys(value):
+    return [k.strip().lower() for k in re.split(r"[,\s]+", value or "") if k.strip()]
+
+
+def preset_label(enabled):
+    for name, keys in PRESETS.items():
+        if set(keys) == set(enabled):
+            return name
+    return "custom"
+
+
+def print_roster(state):
+    active = set(enabled_roles(state))
+    rstate = state.get("roles") or {}
+    print("preset:  %s%s\n" % (rstate.get("preset", "core"),
+                               "" if rstate.get("selected") else "   (default, not yet confirmed)"))
+    shown = None
+    for key, (name, cls, owns, core, _why) in ROLES.items():
+        if cls != shown:
+            shown = cls
+            print("%s — %s" % (cls, CLASSES[cls]))
+        print("  %s  %-19s %-46s %s" % (
+            "on " if key in active else "off", key, owns, "[core]" if core else ""))
+    print("\n%d of %d roles enabled." % (len(active), len(ROLES)))
+
+
+def recommend_roles(state):
+    """Propose a set from what the project actually looks like.
+
+    Deliberately conservative. A recommendation that turns on everything is the same as no
+    recommendation, and costs the human the one thing this is meant to save them: a decision.
+    """
+    def text_of(rel):
+        path = os.path.join(LOOP_DIR, rel)
+        return read(path).lower() if os.path.exists(path) else ""
+
+    plan_text = text_of("0-plan/prd.md") + text_of("0-plan/brd.md") + text_of("0-plan/research.md")
+    tree = source_files()
+    exts = set(os.path.splitext(f)[1] for f in tree)
+
+    suggest, signals = set(CORE_ROLES), []
+
+    def note(role_keys, why):
+        suggest.update(role_keys)
+        signals.append("%-38s -> %s" % (why, ", ".join(role_keys)))
+
+    if {".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"} & exts or \
+            re.search(r"\b(ui|screen|page|component|button|form|design|layout)\b", plan_text):
+        note(["designer"], "UI present or specified")
+
+    if re.search(r"\b(auth|login|password|token|session|payment|card|pii|gdpr|hipaa|upload|personal data)\b",
+                 plan_text) or any("auth" in f.lower() for f in tree):
+        note(["security-architect", "adversary"], "auth / personal data / payments")
+
+    if os.path.exists("Dockerfile") or os.path.isdir(os.path.join(".github", "workflows")) or \
+            re.search(r"\b(deploy|ci/cd|pipeline|docker|kubernetes|hosting|staging|production)\b", plan_text):
+        note(["integrator"], "deployment target implied")
+
+    if not (os.path.exists("README.md") or os.path.exists("readme.md")) or \
+            re.search(r"\b(open source|public|handover|onboard|contributor)\b", plan_text):
+        note(["scribe"], "docs are a deliverable")
+
+    # text_of lowercases, so this match must be case-insensitive or it silently never fires.
+    brs = len(set(re.findall(r"\bbr-\d{3}\b", text_of("0-plan/brd.md"), re.IGNORECASE)))
+    if brs >= 3:
+        note(["product-owner"], "%d business requirements to grade" % brs)
+
+    if state.get("brownfield") or len(text_of("0-plan/research.md").strip()) < 200:
+        note(["analyst"], "research not yet established")
+
+    print("Signals in this project\n-----------------------")
+    for s in signals:
+        print("  " + s)
+    if not signals:
+        print("  none — nothing here argues for an optional role")
+
+    ordered = [k for k in ROLES if k in suggest]
+    optional = [k for k in ordered if not ROLES[k][3]]
+
+    print("\nRecommended: %d roles (%s)" % (len(ordered), preset_label(ordered)))
+    for k in ordered:
+        print("  %-19s %-22s %s" % (k, ROLES[k][0], "[core]" if ROLES[k][3] else ROLES[k][4]))
+
+    print("\nApply with:")
+    if optional:
+        print("  loop.py roles --enable %s" % ",".join(optional))
+    else:
+        print("  loop.py roles --confirm      (the core five are the right set here)")
+
+    print("\nThis is a recommendation, not a decision — put it to the human before applying it.")
+    print("More roles means a slower, more expensive loop that catches more. Fewer means the core")
+    print("roles absorb the work with less specialisation and a wider context. Nothing is skipped")
+    print("either way, so the question is only who does it and how carefully.")
+    return 0
+
+
+def cmd_roles(args):
+    state = require_state()
+    rstate = state.setdefault("roles", {"enabled": list(CORE_ROLES), "preset": "core",
+                                        "selected": False, "selected_at": None})
+
+    if args.recommend:
+        return recommend_roles(state)
+
+    current = set(enabled_roles(state))
+    touched = bool(args.preset or args.enable or args.disable or args.confirm)
+
+    if args.preset:
+        if args.preset not in PRESETS:
+            die("preset must be one of: %s" % ", ".join(PRESETS))
+        current = set(PRESETS[args.preset])
+
+    for key in split_keys(args.enable):
+        if key not in ROLES:
+            die("unknown role '%s'. Run: loop.py roles --list" % key)
+        current.add(key)
+
+    for key in split_keys(args.disable):
+        if key not in ROLES:
+            die("unknown role '%s'. Run: loop.py roles --list" % key)
+        if ROLES[key][3]:
+            die("%s is a core role. Disabling it would leave the %s class with no member, and a "
+                "class with no member is a class whose prohibitions nobody holds."
+                % (ROLES[key][0], ROLES[key][1]))
+        current.discard(key)
+
+    if touched:
+        enabled = [k for k in ROLES if k in current]
+        was = rstate.get("enabled") or list(CORE_ROLES)
+        rstate["enabled"] = enabled
+        rstate["preset"] = preset_label(enabled)
+        rstate["selected"] = True
+        rstate["selected_at"] = now()
+        save_state(state)
+        if set(was) != set(enabled) or not args.confirm:
+            ledger("Role set confirmed: %s (%d roles).\n%s"
+                   % (rstate["preset"], len(enabled), ", ".join(enabled)))
+        print("Role set saved.\n")
+
+    print_roster(state)
+
+    if not touched:
+        print("\nNothing changed. Use --recommend, --preset, --enable/--disable, or --confirm.")
+    elif state.get("phase", 0) > 0:
+        print("\nRoster changed after Phase 0. Any artifact an added role owns must still be")
+        print("written before its gate, and a removed role's artifact reverts to its core role.")
+    return 0
+
+
 # --------------------------------------------------------------------------- tasks
 
 TASK_TEMPLATE = """# {tid} — {title}
@@ -308,9 +535,9 @@ Out of scope:
 - 
 
 ## Read-set
-- loop-project/2-build/tasks/{tid}.md
-- loop-project/1-spec/interfaces.md
-- loop-project/1-spec/security.md (relevant rules only)
+- /loop-project/2-build/tasks/{tid}.md
+- /loop-project/1-spec/interfaces.md
+- /loop-project/1-spec/security.md (relevant rules only)
 
 ## Write-set
 - src/**
@@ -359,7 +586,7 @@ def cmd_task(args):
             "title": args.title, "cycles": 0, "verdict": None, "findings": {}
         }
         save_state(state)
-        print("created loop-project/2-build/tasks/%s.md" % tid)
+        print("created /loop-project/2-build/tasks/%s.md" % tid)
         print("Fill in scope, read-set, write-set and acceptance before handing it to a Worker.")
         return 0
 
@@ -628,7 +855,7 @@ def cmd_reuse(args):
     hits = 0
 
     if os.path.exists(CONVENTIONS):
-        print("registry (loop-project/1-spec/conventions.md)")
+        print("registry (/loop-project/1-spec/conventions.md)")
         for line in read(CONVENTIONS).splitlines():
             low = line.lower()
             if line.strip().startswith("|") and any(t in low for t in terms):
@@ -916,7 +1143,17 @@ def gate_checks(gate, state):
         for h in hits[:4]:
             print("    - unfilled: %s" % h)
 
+    def artifacts_in(subdir, prefix):
+        d = p(subdir)
+        if not os.path.isdir(d):
+            return []
+        return [f for f in os.listdir(d) if f.startswith(prefix)]
+
     if gate == "g0":
+        rstate = state.get("roles") or {}
+        r.add("role set confirmed", bool(rstate.get("selected")),
+              "%d roles (%s)" % (len(enabled_roles(state)), rstate.get("preset", "core"))
+              if rstate.get("selected") else "run: loop.py roles --recommend, then apply it")
         for name, path in [("research", "0-plan/research.md"), ("brd", "0-plan/brd.md"),
                            ("prd", "0-plan/prd.md"), ("plan", "0-plan/plan.md"),
                            ("dod", "0-plan/dod.md")]:
@@ -962,6 +1199,9 @@ def gate_checks(gate, state):
             r.add("trust boundaries marked", "trust boundar" in arch.lower(),
                   "search for 'trust boundar'")
             r.add("foundation order stated", "foundation" in arch.lower(), "")
+        if role_enabled(state, "designer"):
+            r.add("design contract written", nonempty(p("1-spec/design-contract.md")),
+                  "1-spec/design-contract.md (Designer is enabled)")
 
     elif gate == "g2":
         tasks = state.get("tasks", {})
@@ -987,6 +1227,14 @@ def gate_checks(gate, state):
                   "%d finding(s)" % len(secrets), "1")
         r.add("README present", os.path.exists("README.md") or os.path.exists("readme.md"),
               "install, run, test, deploy")
+        if role_enabled(state, "adversary"):
+            secs = artifacts_in("3-verify/qa", "SEC-")
+            r.add("adversary pass recorded", bool(secs),
+                  "%d SEC report(s)" % len(secs) if secs else "no SEC-###.md in 3-verify/qa", "1")
+        if role_enabled(state, "product-owner"):
+            pos = artifacts_in("3-verify/verdicts", "PO-")
+            r.add("business acceptance recorded", bool(pos),
+                  "%d PO verdict(s)" % len(pos) if pos else "no PO-###.md in 3-verify/verdicts")
 
     return r
 
@@ -1051,7 +1299,7 @@ def cmd_block(args):
     save_state(state)
     ledger("BLOCKED: %s\n\nOptions and recommendation belong here." % args.reason)
     print("Status set to BLOCKED.")
-    print("Write the options and your recommendation into loop-project/ledger.md, then stop.")
+    print("Write the options and your recommendation into /loop-project/ledger.md, then stop.")
     return 0
 
 
@@ -1068,6 +1316,17 @@ def main():
 
     p = sub.add_parser("status")
     p.set_defaults(fn=cmd_status)
+
+    p = sub.add_parser("roles")
+    p.add_argument("--list", action="store_true", help="show the roster and what is enabled")
+    p.add_argument("--recommend", action="store_true",
+                   help="propose a set from the shape of this project")
+    p.add_argument("--preset", help="core (5), standard (8) or full (12)")
+    p.add_argument("--enable", help="comma-separated role keys to turn on")
+    p.add_argument("--disable", help="comma-separated role keys to turn off")
+    p.add_argument("--confirm", action="store_true",
+                   help="accept the current set as a deliberate choice")
+    p.set_defaults(fn=cmd_roles)
 
     p = sub.add_parser("task")
     p.add_argument("action", choices=["new", "list"])

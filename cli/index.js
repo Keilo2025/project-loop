@@ -8,7 +8,7 @@
 //   project-loop status             where is it installed
 //   project-loop config             view / edit / reset saved defaults
 //   project-loop doctor             environment checks
-//   project-loop init               scaffold loop-project/ in the current directory
+//   project-loop init               scaffold /loop-project in the current directory
 //
 // Flags: --target <ids|all> --scope <user|project> --project <dir>
 //        --path <dir> --yes --dry-run --no-save --help --version
@@ -96,7 +96,7 @@ function showHelp() {
   out.line('  project-loop status                 show every place it is installed');
   out.line('  project-loop config [--reset]       view or reset saved defaults');
   out.line('  project-loop doctor                 check python3, git, node, paths');
-  out.line('  project-loop init [--brownfield]    scaffold loop-project/ here');
+  out.line('  project-loop init [--brownfield]    scaffold /loop-project here');
   out.line('');
   out.line(b('Flags'));
   out.line('  -t, --target <ids>    ' + ALL_TARGET_IDS.join(', ') + ', or all  (comma-separated)');
@@ -298,7 +298,7 @@ async function cmdUninstall(flags) {
 
   runUninstall(plan);
   out.blank();
-  out.dim('  loop-project/ directories were left alone. They are project state and part of');
+  out.dim('  /loop-project directories were left alone. They are project state and part of');
   out.dim('  your audit trail, not installed files — delete them yourself if you want.');
   out.blank();
   return 0;
@@ -337,7 +337,7 @@ function cmdStatus(flags) {
       out.line('  status  ' + (st.status || '?'));
       if (st.cursor) out.line('  cursor  ' + st.cursor);
     } catch (err) {
-      out.warn('loop-project/loop.json exists but could not be parsed: ' + err.message);
+      out.warn('/loop-project/loop.json exists but could not be parsed: ' + err.message);
     }
   }
 

@@ -1,7 +1,7 @@
 # Security contract
 
 This is a menu, not a checklist to paste. In Phase 1 the Architect selects the rules that apply
-and writes them into `loop-project/1-spec/security.md` with a stated check for each. A rule with no check
+and writes them into `/loop-project/1-spec/security.md` with a stated check for each. A rule with no check
 is a wish, and Workers learn within two tasks to skim a list of wishes.
 
 Selected rules are **blocking**: a Judge returns `REWORK` with Sev-1 on any failure, regardless of

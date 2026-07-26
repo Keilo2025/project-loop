@@ -4,7 +4,7 @@
 // the first one already answered.
 //
 // This file holds preferences only. It is not loop state — loop state lives in
-// each project's loop-project/ directory and is deliberately never centralised.
+// each project's /loop-project directory and is deliberately never centralised.
 
 const fs = require('fs');
 const os = require('os');

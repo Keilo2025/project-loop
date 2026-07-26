@@ -5,7 +5,7 @@
 // Two rules this module will not break:
 //   1. Never overwrite a file the user wrote by hand. Adapter files (AGENTS.md,
 //      cursor rules) are placed only when absent, and reported when skipped.
-//   2. Never touch a loop-project/ directory. That is project state and part of the
+//   2. Never touch a /loop-project directory. That is project state and part of the
 //      audit trail, not an installed artifact.
 
 const fs = require('fs');
@@ -127,7 +127,7 @@ function uninstallOne(dest, targetLabel, dry) {
     }
     if (n) out.ok('removed ' + n + ' subagents ' + paint(colors.grey, '-> ' + d.agentsDir));
   }
-  out.info('adapter files and loop-project/ directories were left alone');
+  out.info('adapter files and /loop-project directories were left alone');
   return { removed: true };
 }
 

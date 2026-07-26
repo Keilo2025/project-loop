@@ -4,7 +4,7 @@ Project Loop is written against the Agent Skills open standard, so the same `SKI
 `references/` load in any tool that implements it. What differs between tools is discovery paths,
 whether real subagents exist, and how the human confirms a gate.
 
-The loop's state lives entirely in `loop-project/`, which means a build can be started in one agent and
+The loop's state lives entirely in `/loop-project`, which means a build can be started in one agent and
 finished in another. That is worth knowing before you commit to a tool for a long project.
 
 ---
@@ -28,9 +28,13 @@ broken.
 
 ## Subagents, and running without them
 
-Claude Code ships the five roles as bundled subagents, each with its own context window. That is
+Claude Code ships all twelve roles as bundled subagents, each with its own context window. That is
 the strongest form of the isolation the design depends on: a Judge that has never seen the
 Worker's reasoning cannot be persuaded by it.
+
+Only the roles enabled for the loop are spawned — `loop.py roles --list` is the source of truth,
+not the contents of the `agents/` directory. A disabled role's work is absorbed by the core role in
+its own class, never by one in another class.
 
 Where subagents are unavailable, run the roles sequentially in one session. The isolation is
 weaker and you should say so rather than pretend otherwise. Compensate by:
@@ -51,7 +55,7 @@ criterion — and those are found by the script, not by the model's independence
 
 ## Human gates
 
-By default only G0 requires a human. Configure this in `loop-project/loop.json`:
+By default only G0 requires a human. Configure this in `/loop-project/loop.json`:
 
 ```json
 { "human_gates": ["g0"] }
@@ -88,24 +92,36 @@ at the worst moment.
 
 Where a runtime lets you set a model per role, the economics are lopsided:
 
-| Role | Suggested | Why |
-|---|---|---|
-| Planner | strongest available | Ambiguity here is paid for repeatedly |
-| Architect | strongest available | Interface defects route back through every task |
-| Worker | mid-tier | Bounded scope and an explicit contract, which is what mid-tier models do well |
-| Tester | mid-tier | Executing and reproducing, not reasoning about design |
-| Judge | strongest available | It holds the exit gate; a lenient Judge voids the whole design |
+| Role | Class | Suggested | Why |
+|---|---|---|---|
+| Analyst | PLAN | strongest available | A missed constraint is the most expensive defect there is |
+| Planner | PLAN | strongest available | Ambiguity here is paid for repeatedly |
+| Architect | PLAN | strongest available | Interface defects route back through every task |
+| Designer | PLAN | strongest available | Taste does not survive quantisation, and a weak design contract is worse than none |
+| Security Architect | PLAN | strongest available | A rule left out is a rule nobody will ever catch |
+| Worker | CODE | mid-tier | Bounded scope and an explicit contract, which is what mid-tier models do well |
+| Integrator | CODE | mid-tier | Mechanical work with an unambiguous pass condition — it runs from a clean clone or it does not |
+| Scribe | CODE | mid-tier | Transcription against artifacts, not invention |
+| Tester | TEST | mid-tier | Executing and reproducing, not reasoning about design |
+| Adversary | TEST | strongest available | Finding the authorisation hole nobody specified is the hardest reasoning in the loop |
+| Judge | JUDGE | strongest available | It holds the exit gate; a lenient Judge voids the whole design |
+| Product Owner | JUDGE | strongest available | Judging whether the right thing was built is not derivable from the diff |
 
-Saving money on the Planner and the Judge is a false economy. Saving it on Workers is usually
-real, and Workers do most of the turns.
+The pattern: **spend on the roles that decide, save on the roles that execute.** Every PLAN and
+JUDGE role, plus the Adversary, benefits from the strongest model available. The CODE roles and the
+Tester work against an explicit contract, which is exactly the condition under which mid-tier
+models perform close to frontier ones — and they do most of the turns, so that is where the saving
+actually lands.
+
+Saving money on the Planner or the Judge is a false economy. Saving it on Workers is usually real.
 
 ---
 
 ## Moving a loop between agents
 
-`loop-project/` is plain Markdown and one JSON file. To hand a build over:
+`/loop-project` is plain Markdown and one JSON file. To hand a build over:
 
-1. Commit `loop-project/` along with the code
+1. Commit `/loop-project` along with the code
 2. Install the skill in the new agent
 3. Run `loop.py status` and continue from the reported cursor
 

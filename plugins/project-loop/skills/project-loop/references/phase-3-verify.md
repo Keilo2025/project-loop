@@ -1,6 +1,6 @@
 # Phase 3 — Verify
 
-Roles: **Tester**, then **Judge**. Output: `loop-project/3-verify/`. Exit: gate **G3**, the only exit
+Roles: **Tester**, then **Judge**. Output: `/loop-project/3-verify/`. Exit: gate **G3**, the only exit
 the loop has.
 
 This is the phase that makes the other three worth doing. It runs in two passes with a hard wall

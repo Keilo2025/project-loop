@@ -93,7 +93,7 @@ test('dry run writes nothing', ({ fakeHome }) => {
   assert.ok(r.stdout.includes('would'), 'dry run should say what it would do');
 });
 
-test('user scope installs skill + 5 subagents for claude', ({ fakeHome }) => {
+test('user scope installs skill + all 12 subagents for claude', ({ fakeHome }) => {
   const r = run(['install', '--target', 'claude', '--scope', 'user', '--yes', '--no-save'],
     { HOME: fakeHome, USERPROFILE: fakeHome });
   assert.strictEqual(r.status, 0, r.stderr);
@@ -104,8 +104,18 @@ test('user scope installs skill + 5 subagents for claude', ({ fakeHome }) => {
   assert.ok(fs.existsSync(path.join(skill, 'references', 'roles.md')), 'references missing');
   assert.ok(fs.existsSync(path.join(skill, 'templates', 'verdict.md')), 'templates missing');
 
+  // All twelve are installed; which ones a given loop actually spawns is decided per project by
+  // `loop.py roles`, not by what is present on disk.
   const agents = fs.readdirSync(path.join(fakeHome, '.claude', 'agents')).filter((f) => f.endsWith('.md'));
-  assert.strictEqual(agents.length, 5, 'expected 5 subagents, got ' + agents.length);
+  assert.strictEqual(agents.length, 12, 'expected 12 subagents, got ' + agents.length);
+
+  for (const core of ['loop-planner', 'loop-architect', 'loop-worker', 'loop-tester', 'loop-judge']) {
+    assert.ok(agents.includes(core + '.md'), 'core subagent missing: ' + core);
+  }
+  for (const optional of ['loop-analyst', 'loop-designer', 'loop-security-architect',
+    'loop-integrator', 'loop-scribe', 'loop-adversary', 'loop-product-owner']) {
+    assert.ok(agents.includes(optional + '.md'), 'optional subagent missing: ' + optional);
+  }
 });
 
 test('project scope installs into the named directory, not HOME', ({ fakeHome, project }) => {

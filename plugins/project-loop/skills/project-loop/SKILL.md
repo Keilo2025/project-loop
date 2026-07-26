@@ -1,6 +1,6 @@
 ---
 name: project-loop
-description: A closed-loop, evidence-gated build system that takes a project from idea to verified completion across four phases (Plan, Spec, Build, Verify), where a Judge role holds the exit gate and issues rework orders until every acceptance criterion is met with evidence. Use this whenever someone wants to build, ship, rebuild, extend, or finish a software project, feature, MVP, app, API, or service and wants it done properly rather than vibe-coded. Trigger on "project loop", "run the loop", "build me a", "let's build", "ship this feature", "plan and build", "spec it then build it", "take this to done", "don't stop until it works", "keep going until it passes", "autonomous build", "agent loop", "QA this", "review my build", "issue rework", "definition of done", "acceptance criteria", or any request implying a multi-step build with tests, security, or a completion bar. Also use to resume an interrupted build whenever a `loop-project/` directory exists in the workspace, and when adding a feature to an existing codebase. Prefer this over ad-hoc coding whenever the work is larger than a single-file edit.
+description: A closed-loop, evidence-gated build system that takes a project from idea to verified completion across four phases (Plan, Spec, Build, Verify), where a Judge role holds the exit gate and issues rework orders until every acceptance criterion is met with evidence. Use this whenever someone wants to build, ship, rebuild, extend, or finish a software project, feature, MVP, app, API, or service and wants it done properly rather than vibe-coded. Trigger on "project loop", "run the loop", "build me a", "let's build", "ship this feature", "plan and build", "spec it then build it", "take this to done", "don't stop until it works", "keep going until it passes", "autonomous build", "agent loop", "QA this", "review my build", "issue rework", "definition of done", "acceptance criteria", or any request implying a multi-step build with tests, security, or a completion bar. Also use to resume an interrupted build whenever a `/loop-project` directory exists in the workspace, and when adding a feature to an existing codebase. Prefer this over ad-hoc coding whenever the work is larger than a single-file edit.
 license: MIT
 ---
 
@@ -41,9 +41,10 @@ Resolve `scripts/loop.py` relative to this skill directory. In Claude Code you c
 | `phase: 0` … `3` | Resume at the reported phase and cursor. Read only that phase's reference. |
 | `status: BLOCKED` | Do not continue. Present the blocking decision to the human and wait. |
 | `status: PASS` | The loop is closed. Do not reopen it without an explicit new request. |
+| `roles: … not yet confirmed` | Run `loop.py roles --recommend` and put the result to the human before Phase 0 research. |
 
 Never reconstruct state by reading the whole repository or scrolling back through conversation.
-State lives in `loop-project/loop.json`. That is deliberate: it survives context compaction, session
+State lives in `/loop-project/loop.json`. That is deliberate: it survives context compaction, session
 restarts, and a switch to a different agent entirely.
 
 ## Artifact tree
@@ -51,7 +52,7 @@ restarts, and a switch to a different agent entirely.
 The loop writes and reads exactly this. Nothing else is loop state.
 
 ```
-loop-project/
+/loop-project
 ├── loop.json              # machine state: phase, cursor, cycle counts, verdicts
 ├── ledger.md              # append-only: decisions, deviations, escalations
 ├── 0-plan/
@@ -72,25 +73,51 @@ loop-project/
 │   └── reports/TASK-###.report.md
 └── 3-verify/
     ├── qa/QA-###.md           # Tester findings, reproducible
+    ├── qa/SEC-###.md          # Adversary findings (only if that role is enabled)
     ├── verdicts/V-###.md      # Judge verdict
+    ├── verdicts/PO-###.md     # business acceptance (only if that role is enabled)
     └── rework/R-###.md        # numbered rework orders
 ```
 
 ## Roles and why they are separated
 
-Five roles. The separation is not theatre — it is the mechanism that makes the verdict mean
-something. Read `references/roles.md` for the full briefs, read-sets, and prohibitions.
+The separation is not theatre — it is the mechanism that makes the verdict mean something. What
+carries the separation is the **authority class**, not the persona:
 
-| Role | Writes | Never does |
+| Class | May write | May never |
 |---|---|---|
-| **Planner** | `0-plan/*` | Write code. Estimate by guessing — it researches first. |
-| **Architect** | `1-spec/*` | Implement. Leave a contract ambiguous. |
-| **Worker** | source code, its own REPORT, registry entries | Touch files outside its write-set. Modify tests to pass. Build without searching first. |
-| **Tester** | `3-verify/qa/*` | Fix what it finds. Report a bug it cannot reproduce. |
-| **Judge** | `3-verify/verdicts/*`, `rework/*` | Write or edit any source file. Accept a claim without evidence. |
+| **PLAN** | specification artifacts in `0-plan/` and `1-spec/` | write source code; issue a verdict |
+| **CODE** | source inside a declared write-set, plus its own REPORT | judge its own output; touch a file outside its write-set; weaken a test to pass |
+| **TEST** | findings in `3-verify/qa/` | fix what it finds; report a defect it cannot reproduce |
+| **JUDGE** | verdicts and orders in `3-verify/` | write or edit any source file; accept a claim without evidence |
 
-In Claude Code these map to bundled subagents (`project-loop:loop-planner` and so on), which gives
-each role a genuinely separate context window. In other agents, or where subagents are
+**Twelve roles are available, and five are on by default.** Each role belongs to exactly one class
+and inherits its prohibitions whole — which is why the roster can grow without the permission model
+growing with it. No role ever holds two classes.
+
+| Class | Core role | Optional roles |
+|---|---|---|
+| PLAN | **Planner**, **Architect** | Analyst, Designer, Security Architect |
+| CODE | **Worker** | Integrator, Scribe |
+| TEST | **Tester** | Adversary |
+| JUDGE | **Judge** | Product Owner |
+
+Turning an optional role off does not skip its work — the core role in the same class absorbs it,
+with less specialisation and a wider context. That is the actual trade, and it is the one to put to
+the human. Full briefs, read-sets and prohibitions: `references/roles.md`.
+
+**Choose the set at loop start, before Phase 0 research.** `loop.py roles --recommend` reads the
+project shape and proposes a set; the human confirms or edits it; `G0 will not pass until it is
+confirmed`, because a roster nobody chose is a roster nobody owns.
+
+```bash
+python3 scripts/loop.py roles --recommend            # propose from the project
+python3 scripts/loop.py roles --preset standard      # core(5) | standard(8) | full(12)
+python3 scripts/loop.py roles --enable designer,adversary
+```
+
+In Claude Code the roles map to bundled subagents (`project-loop:loop-planner` and so on), which
+gives each a genuinely separate context window. In other agents, or where subagents are
 unavailable, run them as sequential roles in one session — announce the role switch explicitly and
 load only that role's read-set. The isolation is weaker but the evidence discipline still holds.
 
@@ -138,7 +165,7 @@ another; task 9 rebuilds the date formatter task 4 already wrote. Every task pas
 acceptance criteria and the result is still a mess, because nothing in a per-task contract can see
 across tasks.
 
-The fix is a memory file every Worker reads: `loop-project/1-spec/conventions.md`. Three sections —
+The fix is a memory file every Worker reads: `/loop-project/1-spec/conventions.md`. Three sections —
 **conventions** (the decisions different Workers would otherwise make differently), a **reuse
 registry** (append-only, one line per reusable unit, written the moment it is created), and
 **bound decisions** (constraints from earlier tasks that later ones may not quietly break).
@@ -210,7 +237,7 @@ Load one of these when you reach the relevant point. Loading all of them defeats
 | `references/phase-1-spec.md` | Entering Phase 1, or writing architecture/QA strategy |
 | `references/phase-2-build.md` | Entering Phase 2, cutting tasks, or building |
 | `references/phase-3-verify.md` | Entering Phase 3, testing, or judging |
-| `references/roles.md` | Switching roles, or spawning a subagent |
+| `references/roles.md` | Choosing the role set, switching roles, or spawning a subagent |
 | `references/report-schema.md` | Writing or validating a Worker REPORT |
 | `references/judge-rubric.md` | Rendering a verdict or writing rework orders |
 | `references/security-contract.md` | Writing `security.md`, or judging a security finding |

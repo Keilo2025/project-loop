@@ -1,6 +1,6 @@
 # REPORT schema
 
-Every task produces exactly one REPORT at `loop-project/2-build/reports/TASK-###.report.md`. It is the
+Every task produces exactly one REPORT at `/loop-project/2-build/reports/TASK-###.report.md`. It is the
 only thing the Judge is required to read from the Worker, so it carries the whole weight of the
 handoff.
 

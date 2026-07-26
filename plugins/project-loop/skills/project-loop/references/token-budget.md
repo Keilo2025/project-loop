@@ -18,15 +18,27 @@ diligent and mostly buys noise.
 
 | Role | Reads | Does not read |
 |---|---|---|
-| Planner | the request, the repo if brownfield, the web | — |
+| Analyst | the request, the repo if brownfield, the web | — |
+| Planner | the request, `research.md`, the repo if brownfield | — |
 | Architect | `prd.md`, `dod.md`, `research.md` | `brd.md` — rationale does not move component boundaries |
+| Designer | `prd.md`, the UI acceptance rows, `architecture.md` | the BRD, source code |
+| Security Architect | `architecture.md`, `interfaces.md`, `prd.md`, `research.md` | task cards, source code |
 | Worker | its task card, `interfaces.md`, `conventions.md`, relevant `security.md` section, `design-contract.md` if UI | BRD, PRD, other task cards, other reports |
+| Integrator | its task card, `architecture.md`, `interfaces.md`, `conventions.md`, existing build and CI config | application source, the PRD |
+| Scribe | `README.md`, `interfaces.md`, merged task cards and REPORTs | application source internals, the BRD |
 | Tester | task card, REPORT, `qa-strategy.md`, acceptance rows | architecture, the Worker's reasoning |
-| Judge | task card, REPORT, QA report, DoD rows in scope, `git diff --stat`, targeted diffs | the whole tree |
+| Adversary | `security.md`, `interfaces.md`, task card, the running system | the Worker's reasoning, the BRD |
+| Judge | task card, REPORT, QA and SEC reports, DoD rows in scope, `git diff --stat`, targeted diffs | the whole tree |
+| Product Owner | `brd.md`, `dod.md`, the Judge's verdicts, the running system | the diff, task cards, REPORTs |
 
 A Worker building a single endpoint does not need to know why the business wants it. If the
 endpoint's purpose genuinely changes how it is built, that belongs in the task card — which is
 where it can be read for a few hundred tokens instead of several thousand.
+
+**Adding roles does not multiply the read cost, because read-sets partition rather than overlap.**
+A Designer reading the UI acceptance rows is reading rows the Architect would otherwise have read
+itself. The cost of a larger roster is turns and handoffs, not context — which is why the honest
+argument against a role is "its output changes no verdict," never "it reads too much."
 
 ---
 

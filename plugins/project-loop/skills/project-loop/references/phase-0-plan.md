@@ -1,18 +1,59 @@
 # Phase 0 — Plan
 
-Role: **Planner**. Output: `loop-project/0-plan/`. Exit: gate **G0**, which requires a human.
+Role: **Planner**. Output: `/loop-project/0-plan/`. Exit: gate **G0**, which requires a human.
 
 Phase 0 exists to make the rest of the loop cheap. Every ambiguity left here becomes a rework
 cycle later, and rework cycles cost roughly ten times what a clarifying question costs. The
 Planner's job is to be expensive once so that Phases 1–3 are cheap repeatedly.
 
-Order matters: research, then business requirements, then product specification, then milestones
-and boundaries, then the Definition of Done last — because the DoD is derived from everything
-above it, and freezing it is the gate.
+Order matters: choose the team, then research, then business requirements, then product
+specification, then milestones and boundaries, then the Definition of Done last — because the DoD
+is derived from everything above it, and freezing it is the gate.
+
+---
+
+## 0.0 Choose the role set
+
+Before any research, decide who is running this loop. Twelve roles are available across four
+authority classes; five are enabled by default. Full roster and briefs: `references/roles.md`.
+
+```bash
+python3 scripts/loop.py roles --recommend
+```
+
+The recommendation reads the shape of the project — UI files or UI language, auth and personal
+data, a deployment target, how many business requirements exist — and proposes a set with the
+signal that argued for each one. **It is a recommendation, not a decision.** Present it to the
+human with the trade stated plainly:
+
+> More roles catch more and cost more. Fewer roles do not skip the work — the core role in the
+> same class absorbs it, with less specialisation and a wider context.
+
+Then apply what they choose:
+
+```bash
+python3 scripts/loop.py roles --preset standard          # core(5) | standard(8) | full(12)
+python3 scripts/loop.py roles --enable designer,adversary
+python3 scripts/loop.py roles --confirm                  # the core five are right here
+```
+
+The test for enabling an optional role is whether its output would change a verdict. A Designer
+earns its place when the design contract is a gate somebody will actually fail against; it does not
+earn its place on a CLI tool. A role whose artifact nobody gates on makes the loop slower and more
+expensive without making it more correct.
+
+Enabling a role has teeth: with the Designer on, G1 requires `design-contract.md`; with the
+Adversary on, G3 requires a SEC report; with the Product Owner on, G3 requires business acceptance.
+That is the point — an optional role that changed no gate would be ceremony.
+
+G0 will not pass until the set has been confirmed. The choice and its reason go into `ledger.md`
+automatically. Changing the roster later is allowed and is another ledger entry, not a silent edit.
 
 ---
 
 ## 0.1 Research → `research.md`
+
+Owned by the **Analyst** when that role is enabled, by the Planner when it is not.
 
 Do not skip this because the request seems clear. The most common cause of a failed build is not
 misunderstanding the request; it is missing a constraint that was knowable.
@@ -41,7 +82,7 @@ regime, whether this replaces something existing, and what "good enough to ship"
 
 ## 0.2 Business requirements → `brd.md`
 
-The BRD answers *why*, in the language of outcomes, not features. `loop.py init` seeds this file in `loop-project/0-plan/`.
+The BRD answers *why*, in the language of outcomes, not features. `loop.py init` seeds this file in `/loop-project/0-plan/`.
 
 Each business requirement is `BR-###` and must state:
 
@@ -59,7 +100,7 @@ part of a BRD, because it is the only place scope gets actively closed. Write it
 
 ## 0.3 Product specification → `prd.md`
 
-The PRD answers *what the system does*. `loop.py init` seeds this file in `loop-project/0-plan/`.
+The PRD answers *what the system does*. `loop.py init` seeds this file in `/loop-project/0-plan/`.
 
 Write functional requirements in **EARS** notation. EARS constrains natural language into six
 patterns, each of which collapses to a single testable claim — which is exactly what a Judge
@@ -96,7 +137,7 @@ not.
 
 ## 0.4 Milestones, dates, ownership → `plan.md`
 
-`loop.py init` seeds this file in `loop-project/0-plan/`.
+`loop.py init` seeds this file in `/loop-project/0-plan/`.
 
 **Milestones.** Each milestone is a demonstrable state of the system, not a period of activity.
 "Auth works end to end including password reset" is a milestone. "Auth development" is a calendar
@@ -120,7 +161,7 @@ concurrency bugs between threads, and they are debugged the same painful way.
 
 ## 0.5 Definition of Done and acceptance checklist → `dod.md`
 
-This is the contract the Judge enforces. `loop.py init` seeds this file in `loop-project/0-plan/`.
+This is the contract the Judge enforces. `loop.py init` seeds this file in `/loop-project/0-plan/`.
 
 Two parts:
 
@@ -163,6 +204,8 @@ a summary — and ask for approval. Check before presenting:
 - [ ] Ownership boundaries assign exactly one writer per area
 - [ ] Every Must-have has an acceptance row with a re-runnable proof
 - [ ] Open questions are listed, and none of them block G1
+
+- [ ] The role set has been chosen deliberately and confirmed, not left at the default
 
 On approval: `python3 scripts/loop.py gate g0 --pass`, which freezes `dod.md` by recording its
 hash in `loop.json`. Any later change to the file is detected and reported as scope drift.

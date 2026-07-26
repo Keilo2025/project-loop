@@ -35,7 +35,10 @@ enforceable rather than aspirational.
 | | Spec Kit | BMAD | OpenSpec | Kiro | GSD | **Project Loop** |
 |---|---|---|---|---|---|---|
 | Spec is source of truth | yes | yes | yes | yes | partial | yes |
-| Multiple specialised roles | no | 12+ | no | no | no | 5 |
+| Multiple specialised roles | no | 12+ | no | no | no | 12 |
+| **Roster chosen per project, not fixed** | no | no | no | no | no | **yes** |
+| **Authority classes, so roles can be added without new permissions** | no | no | no | no | no | **yes** |
+| **Every optional role gates something** | n/a | no | n/a | n/a | n/a | **yes** |
 | **Separate verifier that cannot write code** | no | partial | no | no | no | **yes** |
 | **Structured evidence contract per task** | no | no | no | no | no | **yes** |
 | **Test-tampering detection** | no | no | no | no | no | **yes** |
@@ -49,7 +52,7 @@ enforceable rather than aspirational.
 | Deterministic checks in code, not prompts | no | no | no | partial | no | **yes** |
 | Declared per-role read-sets | no | no | no | no | partial | **yes** |
 | Cross-agent portable | yes | yes | yes | no | partial | yes |
-| Relative token cost | low | high | low | medium | low | **low-medium** |
+| Relative token cost | low | high | low | medium | low | **low to high — you choose** |
 
 Rows are drawn from public documentation and community write-ups. If something here is wrong or
 out of date, open an issue — I would rather this table be accurate than flattering.
@@ -61,10 +64,28 @@ out of date, open an issue — I would rather this table be accurate than flatte
 **Against BMAD.** BMAD is the most architecturally ambitious framework in the category, simulating
 a full agile team across 12+ named agent personas, and it produces genuinely thorough
 documentation. It is also widely reported as the most expensive to run and takes weeks to learn.
-Project Loop has five roles instead of twelve, because most of BMAD's roles produce documents that
-inform rather than gate. If a role's output does not change a verdict, it is a cost centre. Where
-BMAD wins: large regulated greenfield programmes with many humans who need the ceremony, and rich
-documentation as a deliverable in its own right.
+
+Project Loop also has twelve roles, and the difference is what they are for and when you pay for
+them. Three things separate the two:
+
+*Every optional role gates something.* Enable the Designer and G1 will not pass without a design
+contract. Enable the Adversary and G3 requires a security report. Enable the Product Owner and G3
+requires business acceptance against the BRD. A role that changed no gate would be ceremony, and
+the rule for admitting one to the roster is that its output must be able to change a verdict.
+
+*Authority is a class, not a persona.* Four classes — PLAN, CODE, TEST, JUDGE — carry every
+read-set and prohibition, and each role belongs to exactly one. Going from five roles to twelve
+added seven briefs and zero permission rules, which is why the roster can keep growing without the
+model of who-may-do-what getting harder to reason about.
+
+*You pay for the roster you chose.* Five roles are on by default; the loop asks at the start which
+of the other seven this project needs and recommends a set from the shape of the code and the plan.
+A CLI tool runs with five. A regulated payments build runs with twelve. Turning a role off does not
+skip its work — the core role in the same class absorbs it, with less specialisation and a wider
+context — so the choice is about how carefully something is done, not whether it happens.
+
+Where BMAD still wins: large regulated greenfield programmes with many humans who need the
+ceremony, and rich documentation as a deliverable in its own right rather than as a by-product.
 
 **Against Spec Kit.** Spec Kit is the sensible default and the most portable option — a
 constitution file plus a clean four-phase workflow, and it does not fight your IDE. Project Loop
@@ -113,7 +134,7 @@ right. Project Loop costs more per feature. It buys a verdict someone else can t
 Yes, and it is often sensible. Two patterns that work:
 
 **Spec Kit or Kiro for Phases 0–1, Project Loop for Phases 2–3.** Keep the specification workflow
-you already like, and adopt the verification stage. Point `loop-project/1-spec/interfaces.md` at their
+you already like, and adopt the verification stage. Point `/loop-project/1-spec/interfaces.md` at their
 output, or symlink it.
 
 **Project Loop as the verification layer over any pipeline.** Even without the planning phases,

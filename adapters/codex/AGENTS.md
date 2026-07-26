@@ -11,7 +11,7 @@ python3 .agents/skills/project-loop/scripts/loop.py status
 ```
 
 `no loop found` means start at Phase 0. Any other output means resume at the reported cursor.
-State lives in `loop-project/loop.json`, not in the conversation.
+State lives in `/loop-project/loop.json`, not in the conversation.
 
 ## Non-negotiable
 
@@ -24,9 +24,13 @@ State lives in `loop-project/loop.json`, not in the conversation.
   treated as Sev-1.
 - Never edit files outside a task's declared write-set. Request a scope amendment.
 - The Definition of Done is frozen at G0. Changing it afterwards is scope drift and requires a
-  human decision recorded in `loop-project/ledger.md`.
+  human decision recorded in `/loop-project/ledger.md`.
 
 ## Roles
 
-Planner, Architect, Worker, Tester, Judge. Run them sequentially, announcing each switch, and
-honour each role's read-set. Role briefs are in the skill's `references/roles.md`.
+Twelve roles across four authority classes — PLAN, CODE, TEST, JUDGE — of which five are enabled by
+default: Planner, Architect, Worker, Tester, Judge. Choose the set at loop start with
+`loop.py roles --recommend`; G0 will not pass until it is confirmed.
+
+Run the enabled roles sequentially, announcing each switch, and honour each role's read-set. No
+role ever holds two authority classes. Briefs are in the skill's `references/roles.md`.

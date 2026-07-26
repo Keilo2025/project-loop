@@ -22,7 +22,7 @@ which every Worker reads before writing anything.
 
 ## The memory substrate: `conventions.md`
 
-One file, `loop-project/1-spec/conventions.md`, in every Worker's read-set. The Architect writes sections
+One file, `/loop-project/1-spec/conventions.md`, in every Worker's read-set. The Architect writes sections
 1 and 3 in Phase 1; Workers append to section 2 as they build. It is the loop's memory, and it is
 what makes task 20 look like it was written by whoever wrote task 1.
 
@@ -158,7 +158,7 @@ inconsistent one, because nobody can see what changed.
 ## Instantiating it
 
 The Architect writes `conventions.md` sections 1 and 3 during Phase 1 and states in
-`loop-project/1-spec/qa-strategy.md` which craft rules are blocking for this project. Sensible default:
+`/loop-project/1-spec/qa-strategy.md` which craft rules are blocking for this project. Sensible default:
 all mechanical rules blocking at Sev-3, duplication of a registered component at Sev-2, and the
 judgement rules advisory unless the codebase is one people will maintain for years — in which case
 make them blocking too, because the cost curve on drift is steep and entirely back-loaded.
