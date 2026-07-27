@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "project-loop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Closed-loop, evidence-gated build system for AI coding agents. A Judge holds the exit gate.",
   "owner": {
     "name": "Christian Buchholz",

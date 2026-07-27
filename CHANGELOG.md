@@ -6,6 +6,10 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.1.0] — 2026-07-26
+
 ### Added
 
 **Six specialist roles, taking the roster from twelve to eighteen.** The authority model is unchanged
