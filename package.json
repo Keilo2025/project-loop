@@ -1,6 +1,6 @@
 {
   "name": "project-loop",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Closed-loop, evidence-gated build system for AI coding agents. Plan, Spec, Build, Verify — with a separate Judge role that holds the exit gate and issues rework orders until the frozen Definition of Done is met.",
   "keywords": [
     "spec-driven-development",

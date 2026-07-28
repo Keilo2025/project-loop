@@ -6,6 +6,10 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [2.0.0] — 2026-07-28
+
 ### Added
 
 - A black-box lifecycle suite covering gate order, approvals, Git baselines, verdict evidence,
