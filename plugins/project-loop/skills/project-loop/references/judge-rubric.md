@@ -195,6 +195,9 @@ Cycle 2 of 5 for TASK-007. No finding has recurred. Continue.
 
 ```markdown
 ## R-008-01 — Sev-2 — Session survives password change
+Finding-ID: sessions-survive-password-change
+Domain: security
+DoD-impact: no
 Finding: Changing a password does not invalidate existing sessions.
 Evidence: QA-005-02 reproduces on a clean checkout, steps 1-3.
           src/auth/password.ts:88 updates the hash and returns; no session revocation.
@@ -214,11 +217,14 @@ Workers stop thinking.
 
 ## Termination
 
-Increment the cycle counter on every REWORK: `loop.py cycle TASK-###`.
+Record every outcome with `loop.py verdict`; the evidence-free `loop.py cycle` transition is
+retired. A REWORK must include the Judge verdict and every cited numbered order. The order's
+required `Finding-ID`, `Domain`, `DoD-impact`, and heading severity drive recurrence and all hard
+stops; there are no optional command-line flags that can suppress them.
 
 | Condition | Verdict |
 |---|---|
-| All eight checks pass | `PASS` — task closed |
+| All nine checks pass | `PASS` — task closed |
 | Any check fails, within limits | `REWORK` — issue orders |
 | Same finding fails 3 cycles | `BLOCKED` |
 | Task exceeds 5 total cycles | `BLOCKED` |

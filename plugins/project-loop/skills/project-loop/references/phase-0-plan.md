@@ -216,8 +216,16 @@ a summary — and ask for approval. Check before presenting:
 
 - [ ] The role set has been chosen deliberately and confirmed, not left at the default
 
-On approval: `python3 scripts/loop.py gate g0 --pass`, which freezes `dod.md` by recording its
-hash in `loop.json`. Any later change to the file is detected and reported as scope drift.
+On approval, bind the human identity to the exact artifacts that were reviewed, then pass the gate:
+
+```bash
+python3 scripts/loop.py approve g0 --by "<name>" --note "<optional context>"
+python3 scripts/loop.py gate g0 --pass
+```
+
+The first command records an artifact fingerprint. If any approved planning artifact changes before
+the second command, the approval becomes stale and G0 refuses to pass. Passing G0 freezes `dod.md`
+by recording its hash in `loop.json`; any later change is detected as scope drift.
 
 If the human wants changes, take them and re-present. Do not proceed on a maybe — an unapproved
 DoD produces a Judge with nothing to judge against, and the loop degenerates into the pipeline it

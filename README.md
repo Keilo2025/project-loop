@@ -47,8 +47,11 @@ the Worker's behalf teaches the loop that reports are optional.
 
 **2. Test tampering is detected and blocking.**
 The fastest way to make a suite green is to weaken it. `loop.py` diffs test paths separately and
-flags added skip markers, deleted test files, and removed assertions. That is a Sev-1, not a style
-note. It is the one failure mode that makes every other check unreliable, so it gets its own gate.
+flags added skip markers and deleted test files. Any edit to a test that existed at the task's Git
+baseline is rejected conservatively; a genuinely wrong test must be resolved by a human outside the
+implementation task and accepted as a fresh baseline. That is a Sev-1, not a style note: a weakened
+assertion can preserve the assertion count while destroying the contract, so line-count heuristics
+are not trusted.
 
 **3. The Definition of Done is frozen and hashed at G0.**
 An agent that can edit the finish line always reaches it. The DoD's SHA-256 is recorded when the
@@ -206,17 +209,55 @@ To drive it manually:
 
 ```bash
 python3 <skill>/scripts/loop.py status              # always run this first
-python3 <skill>/scripts/loop.py init                # or --brownfield
+python3 <skill>/scripts/loop.py init                # or --brownfield; --force archives the old loop
+python3 <skill>/scripts/loop.py roles --recommend   # apply the recommendation, then --confirm
 python3 <skill>/scripts/loop.py gate g0 --check
+python3 <skill>/scripts/loop.py approve g0 --by "Your Name"
+python3 <skill>/scripts/loop.py gate g0 --pass
+python3 <skill>/scripts/loop.py gate g1 --check
+python3 <skill>/scripts/loop.py gate g1 --pass
 python3 <skill>/scripts/loop.py task new "Receipt upload"
 python3 <skill>/scripts/loop.py reuse "currency format"   # search before building
 python3 <skill>/scripts/loop.py verify TASK-001
-python3 <skill>/scripts/loop.py cycle TASK-001 --finding missing-authz
+python3 <skill>/scripts/loop.py verdict TASK-001 pass \
+  --qa loop-project/3-verify/qa/QA-001.md \
+  --file loop-project/3-verify/verdicts/V-001.md
+python3 <skill>/scripts/loop.py verdict TASK-001 rework \
+  --file loop-project/3-verify/verdicts/V-002.md \
+  --order loop-project/3-verify/rework/R-002-01.md
+python3 <skill>/scripts/loop.py gate g2 --pass       # after every task has a Done REPORT
+python3 <skill>/scripts/loop.py gate g3 --pass       # only after every task has PASS evidence
 ```
 
 Everything the loop knows lives in `/loop-project` as Markdown plus one JSON file. Commit it. A build can
 be started in Claude Code and finished in Codex, or picked up by a colleague three weeks later,
 with no conversation history at all — which is the point.
+
+The state machine will not accept a task before G1, a gate before its predecessor, or a task PASS
+without a valid Git baseline, schema-valid Worker REPORT, independent Tester QA, and Judge verdict.
+The task card, REPORT, and QA must name exactly the same concrete `AC-###` set. PASS records the
+mechanical-verification receipt, hashes every evidence artifact, and snapshots the exact paths that
+task delivered, including executable mode bits. G3 revalidates those immutable boundaries and
+rejects any final changed path owned by no passing task, so a later task cannot invalidate an
+earlier one while post-verdict edits and unreviewed additions still fail closed.
+
+G0 freezes the approved role roster as well as the DoD, preventing a role from being disabled later
+to bypass its security, UI, or product evidence. Enabled Adversary and UI Critic roles require
+schema-valid evidence for every task, while an enabled Product Owner must record a PASS tied to a
+named business requirement and observed outcome evidence. Lifecycle commands use a project lock, so
+parallel agents cannot lose each other's state updates. The current tree receives the full secret
+scan; Git history is also searched for strong token and private-key signatures. Symlinks are banned
+inside the loop-owned evidence tree, and changed source links may not resolve outside the project.
+If a Judge records `BLOCKED`, resume only through
+`loop.py unblock --by "<name>" --decision "<decision>"`; the attribution and decision are appended
+to the audit trail.
+
+A trusted task boundary requires a committed Git `HEAD` before `task new`; PASS deliberately fails
+closed without one. Commit each passing task before creating the next, so the next task's baseline
+does not inherit the previous task's delta. For a loop created by an older version, first commit the checkout, then run
+`loop.py migrate --by "<name>" --reason "<why this checkout is accepted>"`. Migration records the
+attestation, installs missing baselines, and invalidates old PASS evidence so affected tasks are
+verified again.
 
 ---
 

@@ -86,8 +86,9 @@ refactor rather than a move.
   amendment. The Architect can widen the write-set in seconds; an unrecorded out-of-scope edit
   costs a rework cycle and undermines every subsequent verdict.
 - Modify, weaken, skip, or delete an existing test to make the suite pass. This is detected
-  automatically and is an immediate Sev-1. If a test is genuinely wrong, say so in the REPORT under
-  `Blocked` and let the Judge rule on it.
+  automatically and is an immediate Sev-1. If a baseline test is genuinely wrong, stop under
+  `Blocked`; resolve it through a human decision and a fresh approved baseline. The implementation
+  task is not allowed to rewrite its own proof.
 - Refactor, tidy, rename, or improve anything no acceptance criterion depends on. Unasked-for
   changes are the main reason diffs become unreviewable, and unreviewable diffs get rubber-stamped.
 - Add a dependency that is not in the spec without recording it in the REPORT with a reason. New

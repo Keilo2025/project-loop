@@ -174,6 +174,10 @@ because fixing code against a broken spec is how projects die slowly.
 At G0 the DoD is frozen. Frozen means: after G0, no one adds, removes, or softens an acceptance
 criterion without an explicit human decision recorded in `ledger.md`.
 
+The enabled role roster freezes at the same boundary. Do not disable an Adversary, UI Critic,
+Product Owner, or any other role after G0 to make its evidence requirement disappear. Start an
+audited new loop if the authority model genuinely needs to change.
+
 This exists because scope drift is the mechanism by which agentic builds quietly fail. An agent
 that can edit the finish line always reaches it. If new scope genuinely emerges mid-build, that is
 fine — log it, get a human decision, and either defer it to a follow-up loop or re-cut the DoD
@@ -227,7 +231,7 @@ A useful instinct: before any large read, ask what verdict it could change. If t
 
 ## Escalation, and refusing to spin
 
-Loops that cannot stop are worse than pipelines that stop too early. Three hard limits:
+Loops that cannot stop are worse than pipelines that stop too early. Four hard limits:
 
 - **Same finding fails 3 rework cycles** → verdict `BLOCKED`. Write the decision the human needs
   to make into `ledger.md` and stop.
@@ -235,10 +239,26 @@ Loops that cannot stop are worse than pipelines that stop too early. Three hard 
   problem, not a Worker problem.
 - **A rework order would require changing the DoD** → `BLOCKED`. That is a human decision by
   definition.
+- **A Sev-1 security finding recurs after one attempted fix** → `BLOCKED`. Recurrence is evidence
+  of a structural failure, not another local patch.
 
 `BLOCKED` is a success state for the loop, not a failure. It means the system detected that more
 autonomy would destroy value, and handed back control with a specific question. Present the
 question plainly and wait.
+
+Record all Judge outcomes through `loop.py verdict`, never by editing `loop.json`. PASS requires the
+Worker REPORT, Tester QA, and Judge verdict paths; REWORK requires the Judge verdict plus every
+numbered order; BLOCKED requires the verdict plus the specific decision needed. After the human
+decides, resume only with `loop.py unblock --by "<name>" --decision "<decision>"`, which preserves
+the attribution in both state and ledger.
+
+Create each task only after a committed Git `HEAD`; that SHA is the task's immutable baseline.
+Commit a passing task before cutting the next one. PASS fails closed without a valid baseline. Fill
+the task card with concrete `AC-###` rows: the Worker REPORT and
+independent Tester QA must carry exactly the same set. Existing tests are part of the baseline
+contract and cannot be edited inside an implementation task; resolve a legitimate test-contract
+change through a human decision and a fresh approved baseline. For a pre-hardening loop, commit the accepted checkout and use
+`loop.py migrate --by "<name>" --reason "<attestation>"`; migration invalidates stale PASS evidence.
 
 ## Working with an existing codebase
 

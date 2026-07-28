@@ -390,8 +390,8 @@ exist, `references/discoverability-contract.md` Part B.
 > You do not touch files outside your write-set. If the work genuinely requires it, stop and
 > request a scope amendment — an unrecorded out-of-scope edit costs a full rework cycle. You do not
 > modify, weaken, skip or delete an existing test to make the suite pass; that is detected
-> automatically and treated as a Sev-1. If a test is genuinely wrong, say so under `Blocked` and
-> let the Judge rule.
+> automatically and treated as a Sev-1. If a baseline test is genuinely wrong, stop under
+> `Blocked`; resolve it through a human decision and a fresh approved baseline.
 >
 > Before creating anything — component, hook, utility, service, type, endpoint — run
 > `loop.py reuse "<what you are about to build>"`. Import what fits, extend what nearly fits, build

@@ -18,15 +18,18 @@ Python 3.8+, standard library only, no network access.
   loop.py task list                list tasks and their state
   loop.py reuse "currency format"  search registry + tree BEFORE building anything new
   loop.py verify TASK-007          run the deterministic REPORT, scope, integrity + craft checks
-  loop.py cycle TASK-007           record a rework cycle, evaluate stop conditions
+  loop.py verdict TASK-007 pass    record a typed Judge outcome and its evidence
   loop.py gate g1 --check          run a gate's mechanical checks
   loop.py gate g1 --pass           advance the loop past a gate
   loop.py block "<reason>"         set status BLOCKED and write to the ledger
+  loop.py unblock --by NAME ...    resume only after a recorded human decision
+  loop.py migrate --by NAME ...    attest a legacy roster or missing Git baseline
 
 Exit codes: 0 pass, 1 fail (checks did not clear), 2 usage or state error.
 """
 
 import argparse
+from contextlib import contextmanager
 import fnmatch
 import hashlib
 import json
@@ -34,6 +37,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 
 LOOP_DIR = "loop-project"
@@ -127,6 +132,7 @@ REPORT_SECTIONS = [
 
 MAX_CYCLES_PER_TASK = 5
 MAX_REPEAT_FINDING = 3
+MAX_TEXT_BYTES = 5_000_000
 
 CONVENTIONS = os.path.join(LOOP_DIR, "1-spec/conventions.md")
 
@@ -175,6 +181,16 @@ SECRET_PATTERNS = [
     (r"(?i)\bpassword\b\s*[:=]\s*['\"][^'\"]{6,}['\"]", "hardcoded password"),
 ]
 
+# Strong, low-noise signatures that Git can search across reachable patches. Generic assignments
+# are intentionally left to the current-tree scanner because history contains too many examples
+# and fixtures for those patterns to remain actionable.
+HISTORY_SECRET_PATTERNS = [
+    (r"AKIA[0-9A-Z]{16}", "aws access key id"),
+    (r"-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----", "private key block"),
+    (r"sk-[A-Za-z0-9]{20,}", "provider token"),
+    (r"gh[pousr]_[A-Za-z0-9]{20,}", "github token"),
+]
+
 PLACEHOLDER_HINTS = ("example", "changeme", "placeholder", "your-", "xxx", "dummy", "<", "test")
 
 
@@ -190,28 +206,214 @@ def die(msg, code=2):
 
 
 def read(path):
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read()
+    candidate = os.path.abspath(path)
+    loop_root = os.path.abspath(LOOP_DIR)
+    try:
+        owned = os.path.commonpath([loop_root, candidate]) == loop_root
+    except ValueError:
+        owned = False
+    if owned and not loop_owned_path_is_safe(path):
+        die("refusing to read through an unsafe loop-project path: %s" % path)
+    try:
+        size = os.path.getsize(path)
+    except OSError as exc:
+        die("cannot read %s (%s)" % (path, exc))
+    if size > MAX_TEXT_BYTES:
+        die("refusing to read %s: %d bytes exceeds the %d-byte text limit"
+            % (path, size, MAX_TEXT_BYTES))
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError as exc:
+        die("cannot read %s (%s)" % (path, exc))
 
 
 def write(path, content):
+    candidate = os.path.abspath(path)
+    loop_root = os.path.abspath(LOOP_DIR)
+    try:
+        owned = os.path.commonpath([loop_root, candidate]) == loop_root
+    except ValueError:
+        owned = False
+    if owned and not loop_owned_path_is_safe(path):
+        die("refusing to write through an unsafe loop-project path: %s" % path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
 
+@contextmanager
+def project_lock(timeout_seconds=10):
+    """Serialize lifecycle commands so parallel agents cannot lose state updates."""
+    project_id = hashlib.sha256(
+        os.path.realpath(".").encode("utf-8", errors="surrogateescape")
+    ).hexdigest()[:24]
+    lock_path = os.path.join(tempfile.gettempdir(), "project-loop-%s.lock" % project_id)
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    deadline = time.monotonic() + timeout_seconds
+    unlock = None
+    try:
+        try:
+            import fcntl
+
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    unlock = lambda: fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        die("another Project Loop command still holds the project lock")
+                    time.sleep(0.05)
+        except ImportError:  # pragma: no cover - exercised on Windows
+            import msvcrt
+
+            if os.path.getsize(lock_path) == 0:
+                os.write(descriptor, b"0")
+            while True:
+                try:
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                    unlock = lambda: (
+                        os.lseek(descriptor, 0, os.SEEK_SET),
+                        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1),
+                    )
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        die("another Project Loop command still holds the project lock")
+                    time.sleep(0.05)
+        yield
+    finally:
+        if unlock is not None:
+            unlock()
+        os.close(descriptor)
+
+
+def loop_root_is_confined():
+    """The loop root itself must be a real directory owned by this project."""
+    if not os.path.lexists(LOOP_DIR):
+        return True
+    if os.path.islink(LOOP_DIR):
+        return False
+    project_root = os.path.realpath(".")
+    loop_root = os.path.realpath(LOOP_DIR)
+    try:
+        return (loop_root != project_root
+                and os.path.commonpath([project_root, loop_root]) == project_root)
+    except ValueError:
+        return False
+
+
+def first_loop_symlink():
+    """Return the first symlink anywhere in the owned evidence tree."""
+    if not os.path.isdir(LOOP_DIR) or os.path.islink(LOOP_DIR):
+        return LOOP_DIR if os.path.islink(LOOP_DIR) else None
+    for base, dirs, names in os.walk(LOOP_DIR, followlinks=False):
+        for name in dirs + names:
+            path = os.path.join(base, name)
+            if os.path.islink(path):
+                return path
+    return None
+
+
+def loop_owned_path_is_safe(path):
+    """Require every existing component of an owned path to be a real in-tree path."""
+    if not loop_root_is_confined():
+        return False
+    project_root = os.path.realpath(".")
+    loop_root = os.path.abspath(LOOP_DIR)
+    candidate = os.path.abspath(path)
+    try:
+        if os.path.commonpath([loop_root, candidate]) != loop_root:
+            return False
+    except ValueError:
+        return False
+    current = loop_root
+    relative = os.path.relpath(candidate, loop_root)
+    if relative != ".":
+        for component in relative.split(os.sep):
+            current = os.path.join(current, component)
+            if os.path.lexists(current) and os.path.islink(current):
+                return False
+    resolved = os.path.realpath(candidate)
+    try:
+        return (os.path.commonpath([project_root, resolved]) == project_root
+                and os.path.commonpath([os.path.realpath(loop_root), resolved])
+                == os.path.realpath(loop_root))
+    except ValueError:
+        return False
+
+
 def load_state():
+    if not loop_root_is_confined():
+        die("loop-project must be a real directory inside the project")
+    unsafe_link = first_loop_symlink()
+    if unsafe_link:
+        die("loop-project contains a symlink at %s; owned evidence paths must be real"
+            % unsafe_link)
     if not os.path.exists(STATE_FILE):
         return None
     try:
-        return json.loads(read(STATE_FILE))
+        state = json.loads(read(STATE_FILE))
     except json.JSONDecodeError as e:
         die("%s is not valid JSON (%s). Fix it by hand; the loop will not guess." % (STATE_FILE, e))
+    if not isinstance(state, dict):
+        die("loop.json must contain a JSON object")
+    phase = state.get("phase")
+    if isinstance(phase, bool) or not isinstance(phase, int) or not 0 <= phase < len(PHASES):
+        die("loop.json has invalid phase; expected an integer from 0 to 3")
+    if state.get("status") not in ("ACTIVE", "BLOCKED", "PASS"):
+        die("loop.json has invalid status; expected ACTIVE, BLOCKED or PASS")
+    gates = state.get("gates")
+    if not isinstance(gates, dict):
+        die("loop.json has invalid gates; expected an object")
+    for gate in GATES:
+        value = gates.get(gate)
+        if not isinstance(value, dict) or not isinstance(value.get("passed"), bool):
+            die("loop.json has invalid %s gate state" % gate.upper())
+    if not isinstance(state.get("tasks"), dict):
+        die("loop.json has invalid tasks; expected an object")
+    for tid, task in state["tasks"].items():
+        if not re.match(r"^TASK-\d{3}$", tid) or not isinstance(task, dict):
+            die("loop.json has invalid task entry: %s" % tid)
+    roles = state.get("roles")
+    if roles is not None and not isinstance(roles, dict):
+        die("loop.json has invalid roles; expected an object")
+    if isinstance(roles, dict):
+        enabled = roles.get("enabled")
+        if enabled is not None and (
+                not isinstance(enabled, list)
+                or any(role not in ROLES for role in enabled)
+                or any(role not in enabled for role in CORE_ROLES)):
+            die("loop.json has invalid enabled role list")
+    frozen_roles = state.get("frozen_roles")
+    if frozen_roles is not None and (
+            not isinstance(frozen_roles, list)
+            or any(role not in ROLES for role in frozen_roles)
+            or len(frozen_roles) != len(set(frozen_roles))
+            or any(role not in frozen_roles for role in CORE_ROLES)):
+        die("loop.json has invalid frozen role list")
+    return state
 
 
 def save_state(state):
     state["updated"] = now()
-    write(STATE_FILE, json.dumps(state, indent=2) + "\n")
+    if not loop_owned_path_is_safe(STATE_FILE):
+        die("refusing to write state through an unsafe loop-project path")
+    os.makedirs(LOOP_DIR, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix=".loop.json.", dir=LOOP_DIR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(state, indent=2) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        mode = os.stat(STATE_FILE).st_mode & 0o777 if os.path.exists(STATE_FILE) else 0o644
+        os.chmod(temp_path, mode)
+        os.replace(temp_path, STATE_FILE)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 def require_state():
@@ -222,6 +424,8 @@ def require_state():
 
 
 def ledger(entry):
+    if not loop_owned_path_is_safe(LEDGER):
+        die("refusing to write the ledger through an unsafe loop-project path")
     line = "\n## %s\n%s\n" % (now(), entry.strip())
     if os.path.exists(LEDGER):
         with open(LEDGER, "a", encoding="utf-8") as f:
@@ -232,7 +436,13 @@ def ledger(entry):
 
 def git(*args):
     try:
-        out = subprocess.run(["git"] + list(args), capture_output=True, text=True, timeout=30)
+        out = subprocess.run(
+            ["git"] + list(args),
+            capture_output=True,
+            text=True,
+            errors="surrogateescape",
+            timeout=30,
+        )
         return out.returncode, out.stdout, out.stderr
     except (OSError, subprocess.SubprocessError):
         return 1, "", "git unavailable"
@@ -242,10 +452,60 @@ def has_git():
     return git("rev-parse", "--git-dir")[0] == 0
 
 
+def git_commit_exists(commit):
+    if not commit:
+        return False
+    return git("cat-file", "-e", commit + "^{commit}")[0] == 0
+
+
 def sha256_of(path):
     if not os.path.exists(path):
         return None
-    return hashlib.sha256(read(path).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def approval_fingerprint(gate, state):
+    """Hash the artifacts and stable state a human approved at a gate."""
+    roots = {
+        "g0": ["0-plan"],
+        "g1": ["1-spec"],
+        "g2": ["2-build"],
+        "g3": ["0-plan/dod.md", "3-verify"],
+    }[gate]
+    digest = hashlib.sha256()
+    digest.update(hashlib.sha256(gate.encode("utf-8")).digest())
+    stable_state = {
+        "roles": state.get("roles"),
+        "tasks": state.get("tasks"),
+        "dod_hash": state.get("dod_hash"),
+    }
+    digest.update(hashlib.sha256(
+        json.dumps(stable_state, sort_keys=True).encode("utf-8")
+    ).digest())
+
+    files = []
+    for rel in roots:
+        path = os.path.join(LOOP_DIR, rel)
+        if os.path.isfile(path):
+            files.append(path)
+        elif os.path.isdir(path):
+            for base, dirs, names in os.walk(path):
+                dirs.sort()
+                for name in sorted(names):
+                    files.append(os.path.join(base, name))
+    for path in sorted(files):
+        rel = os.path.relpath(path, LOOP_DIR).replace("\\", "/")
+        digest.update(hashlib.sha256(rel.encode("utf-8")).digest())
+        with open(path, "rb") as f:
+            file_digest = hashlib.sha256()
+            for chunk in iter(lambda: f.read(65536), b""):
+                file_digest.update(chunk)
+            digest.update(file_digest.digest())
+    return digest.hexdigest()
 
 
 def is_test_path(path):
@@ -260,7 +520,14 @@ def enabled_roles(state):
     which is exactly how it already behaved — an old loop must never change shape because the
     tool was upgraded underneath it.
     """
-    names = (state.get("roles") or {}).get("enabled") or CORE_ROLES
+    frozen = (
+        state.get("frozen_roles")
+        if state.get("gates", {}).get("g0", {}).get("passed")
+        else None
+    )
+    names = frozen if frozen is not None else (
+        (state.get("roles") or {}).get("enabled") or CORE_ROLES
+    )
     return [k for k in ROLES if k in names]
 
 
@@ -296,6 +563,20 @@ class Result:
 
 # --------------------------------------------------------------------------- init
 
+def archive_existing_loop():
+    if not os.path.lexists(LOOP_DIR):
+        return None
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    base = "%s.archive-%s" % (LOOP_DIR, stamp)
+    target = base
+    suffix = 1
+    while os.path.lexists(target):
+        suffix += 1
+        target = "%s-%d" % (base, suffix)
+    os.replace(LOOP_DIR, target)
+    return target
+
+
 SEED = {
     "0-plan/research.md": "# Research\n\n## What exists\n\n## Hard constraints\n\n## Prior art\n\n## Decisions taken\n| Decision | Alternatives rejected | Why |\n|---|---|---|\n\n## Open questions\n",
     "0-plan/brd.md": "# Business requirements\n\n| ID | Outcome | For whom | Success measure | Cost of not doing it | Priority |\n|----|---------|----------|-----------------|----------------------|----------|\n| BR-001 | | | | | Must |\n\n## Won't do this cycle\n- \n",
@@ -322,8 +603,13 @@ OPTIONAL_SEED = {
 
 
 def cmd_init(args):
-    if os.path.exists(STATE_FILE) and not args.force:
-        die("a loop already exists here. Use --force to overwrite (this discards state).")
+    if not loop_root_is_confined() and not args.force:
+        die("loop-project must be a real directory inside the project; "
+            "use --force to archive the symlink and create a safe loop")
+    if os.path.lexists(LOOP_DIR) and not args.force:
+        die("loop-project already exists. Use --force to archive it and start a fresh loop.")
+
+    archived = archive_existing_loop() if args.force else None
 
     for phase in PHASES:
         os.makedirs(os.path.join(LOOP_DIR, phase), exist_ok=True)
@@ -344,6 +630,7 @@ def cmd_init(args):
         "cursor": "0.1 research",
         "brownfield": bool(args.brownfield),
         "human_gates": ["g0"],
+        "approvals": {},
         "roles": {"enabled": list(CORE_ROLES), "preset": "core", "vertical": None,
                   "selected": False, "selected_at": None},
         "gates": {g: {"passed": False, "at": None} for g in GATES},
@@ -355,6 +642,8 @@ def cmd_init(args):
     ledger("Loop initialised (%s)." % ("brownfield" if args.brownfield else "greenfield"))
 
     print("Initialised /loop-project")
+    if archived:
+        print("Archived previous loop at /%s" % archived)
     print("Phase 0. First choose the role set, then research.md, brd.md, prd.md, plan.md, dod.md.")
     print("")
     print("Roles: 18 available, the core 5 enabled by default. Run 'loop.py roles --recommend',")
@@ -582,6 +871,8 @@ def cmd_roles(args):
 
     current = set(enabled_roles(state))
     touched = bool(args.preset or args.enable or args.disable or args.confirm or args.vertical)
+    if touched and state.get("gates", {}).get("g0", {}).get("passed"):
+        die("the role roster was frozen at G0; use an audited new loop to change it")
 
     # Validate the vertical before touching anything, so a typo does not half-apply a role change.
     vertical = None
@@ -714,13 +1005,29 @@ def cmd_task(args):
     if args.action == "new":
         if not args.title:
             die('task new needs a title: loop.py task new "Session revocation"')
+        if (state.get("gates", {}).get("g0", {}).get("passed")
+                and not state.get("frozen_roles")):
+            die("the approved role roster is missing; run the audited migrate command first")
+        if not state.get("gates", {}).get("g1", {}).get("passed"):
+            die("tasks can only be created after G1 has passed")
+        if state.get("phase") != 2 or state.get("gates", {}).get("g2", {}).get("passed"):
+            die("tasks can only be created during Phase 2 before G2 passes")
+        if state.get("status") != "ACTIVE":
+            die("tasks can only be created while the loop is ACTIVE")
         tid = next_id(tdir, "TASK")
         write(os.path.join(tdir, tid + ".md"), TASK_TEMPLATE.format(tid=tid, title=args.title))
+        code, head, _ = git("rev-parse", "HEAD")
+        base_sha = head.strip() if code == 0 else None
         state.setdefault("tasks", {})[tid] = {
-            "title": args.title, "cycles": 0, "verdict": None, "findings": {}
+            "title": args.title, "cycles": 0, "verdict": None, "findings": {},
+            "base_sha": base_sha,
         }
         save_state(state)
         print("created /loop-project/2-build/tasks/%s.md" % tid)
+        if base_sha:
+            print("baseline: %s" % base_sha)
+        else:
+            print("warning: no Git HEAD found; immutable task diff verification is unavailable")
         print("Fill in scope, read-set, write-set and acceptance before handing it to a Worker.")
         return 0
 
@@ -770,43 +1077,159 @@ def matches_any(path, globs):
     return False
 
 
+def check_changed_path_confinement(files):
+    """Reject task-delivered paths whose symlink resolution leaves the project."""
+    project_root = os.path.realpath(".")
+    findings = []
+    for path in files:
+        if not os.path.lexists(path):
+            continue
+        resolved = os.path.realpath(path)
+        try:
+            inside = os.path.commonpath([project_root, resolved]) == project_root
+        except ValueError:
+            inside = False
+        if not inside:
+            findings.append("%s: resolves outside the project" % path)
+    return findings
+
+
 # --------------------------------------------------------------------------- verify
 
-def changed_files():
+def changed_files(base_sha=None):
     if not has_git():
         return None
-    # --untracked-files=all matters: without it git collapses a new directory to one
-    # entry, and every new file inside it becomes invisible to the checks below.
-    code, out, _ = git("status", "--porcelain", "--untracked-files=all")
+    files = []
+    if base_sha:
+        code, out, _ = git("diff", "--name-only", "-z", base_sha, "--")
+        if code != 0:
+            return None
+        files.extend(path for path in out.split("\0") if path)
+
+    # Untracked files are absent from `git diff <base>`, so merge status into the
+    # baseline diff. `--untracked-files=all` avoids collapsing a new directory to
+    # one entry and hiding every file inside it.
+    code, status_out, _ = git(
+        "status", "--porcelain=v1", "-z", "--untracked-files=all"
+    )
     if code != 0:
         return None
+    records = status_out.split("\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if len(record) < 4:
+            continue
+        status = record[:2]
+        files.append(record[3:])
+        if "R" in status or "C" in status:
+            # In porcelain -z mode a rename/copy's original path is the next
+            # NUL-delimited field. The first field above is the destination.
+            index += 1
+    return list(dict.fromkeys(f for f in files if f))
+
+
+def project_files():
+    """Files owned by the project, excluding loop evidence and generated/vendor trees."""
+    skipped = {".git", "node_modules", "dist", "build", ".next", ".venv", "__pycache__",
+               "vendor", "target", "coverage"}
     files = []
-    for line in out.splitlines():
-        if len(line) > 3:
-            path = line[3:].strip()
-            if " -> " in path:
-                path = path.split(" -> ")[-1]
-            files.append(path.strip('"'))
+    for base, dirs, names in os.walk("."):
+        dirs[:] = [
+            name for name in dirs
+            if name not in skipped
+            and name != LOOP_DIR
+            and not name.startswith(LOOP_DIR + ".archive-")
+        ]
+        for name in names:
+            files.append(os.path.relpath(os.path.join(base, name), "."))
     return files
 
 
-def diff_for(path):
+def snapshot_paths(files):
+    """Hash an exact immutable set of task-delivered paths."""
+    files = sorted(set(
+        path.replace("\\", "/") for path in files
+        if path != LOOP_DIR
+        and not path.startswith(LOOP_DIR + "/")
+        and not path.startswith(LOOP_DIR + ".archive-")
+    ))
+    digest = hashlib.sha256()
+    for path in files:
+        encoded = path.encode("utf-8", errors="surrogateescape")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+        if os.path.lexists(path):
+            mode = os.lstat(path).st_mode & 0o7777
+            digest.update(b"M")
+            digest.update(mode.to_bytes(4, "big"))
+        if os.path.islink(path):
+            target = os.readlink(path).encode("utf-8", errors="surrogateescape")
+            digest.update(b"L")
+            digest.update(len(target).to_bytes(8, "big"))
+            digest.update(target)
+        elif os.path.isfile(path):
+            digest.update(b"F")
+            digest.update(os.path.getsize(path).to_bytes(8, "big"))
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    digest.update(chunk)
+        else:
+            digest.update(b"D")
+    return digest.hexdigest(), files
+
+
+def result_snapshot(base_sha=None):
+    """Capture the task result delta at the moment its verdict is recorded."""
+    if has_git():
+        files = changed_files(base_sha)
+        if files is None:
+            return None, []
+    else:
+        files = project_files()
+    return snapshot_paths(files)
+
+
+def diff_for(path, base_sha=None):
+    if base_sha:
+        code, out, _ = git("diff", "--unified=0", base_sha, "--", path)
+        if code == 0 and out:
+            return out
     code, out, _ = git("diff", "--unified=0", "--", path)
     if code != 0 or not out:
         code, out, _ = git("diff", "--cached", "--unified=0", "--", path)
+    if not out and os.path.isfile(path):
+        tracked, _, _ = git("ls-files", "--error-unmatch", "--", path)
+        if tracked != 0:
+            # Git has no diff for an untracked file. Model it as an all-added
+            # diff so integrity checks cannot hide skips in a newly created test.
+            return "\n".join("+" + line for line in read(path).splitlines())
     return out
 
 
-def check_test_tampering(files):
+def check_test_tampering(files, base_sha=None):
     findings = []
     test_files = [f for f in files if is_test_path(f)]
     for f in test_files:
         if not os.path.exists(f):
             findings.append("%s: test file deleted" % f)
             continue
-        d = diff_for(f)
+        d = diff_for(f, base_sha)
         if not d:
             continue
+        if base_sha:
+            code, baseline_paths, _ = git(
+                "ls-tree", "-r", "--name-only", "-z", base_sha, "--", f
+            )
+            existed_at_baseline = (
+                code == 0 and f in {path for path in baseline_paths.split("\0") if path}
+            )
+            if existed_at_baseline:
+                findings.append(
+                    "%s: pre-existing test modified; resolve the test contract outside "
+                    "this task and create a fresh human-approved baseline" % f
+                )
         added = [l[1:] for l in d.splitlines() if l.startswith("+") and not l.startswith("+++")]
         removed = [l[1:] for l in d.splitlines() if l.startswith("-") and not l.startswith("---")]
         for line in added:
@@ -847,6 +1270,24 @@ def check_secrets(files):
     return findings
 
 
+def check_git_history_secrets():
+    """Find strong secret signatures even when a later commit deleted the file."""
+    if not has_git():
+        return None
+    findings = []
+    for pattern, label in HISTORY_SECRET_PATTERNS:
+        code, commits, error = git(
+            "log", "--all", "--format=%H", "--no-patch", "--max-count=1",
+            "--regexp-ignore-case", "-G", pattern, "--",
+        )
+        if code != 0:
+            return None
+        commit = next((line.strip() for line in commits.splitlines() if line.strip()), None)
+        if commit:
+            findings.append("%s in commit %s" % (label, commit[:12]))
+    return findings
+
+
 def source_files(root="."):
     """Every plausible source file, excluding vendored and generated trees."""
     skip = {".git", "node_modules", "dist", "build", ".next", ".venv", "__pycache__",
@@ -869,7 +1310,7 @@ def normalise_name(path):
 
 
 def normalise_content(text):
-    text = re.sub(r"//.*|#.*|/\*.*?\*/", " ", text, flags=re.DOTALL)
+    text = re.sub(r"//[^\n]*|#[^\n]*|/\*.*?\*/", " ", text, flags=re.DOTALL)
     text = re.sub(r"['\"].*?['\"]", "S", text, flags=re.DOTALL)
     return re.sub(r"\s+", "", text).lower()
 
@@ -1035,10 +1476,13 @@ def cmd_reuse(args):
     return 0
 
 
-def validate_report(text):
+def validate_report(text, expected_task=None):
     problems = []
     if not re.search(r"^#\s+REPORT\s+TASK-\d{3}", text, re.MULTILINE):
         problems.append("missing '# REPORT TASK-###' heading")
+    elif expected_task and not re.search(
+            r"^#\s+REPORT\s+%s\b" % re.escape(expected_task), text, re.MULTILINE):
+        problems.append("REPORT heading does not name %s" % expected_task)
 
     m = re.search(r"^Status:\s*(\w+)", text, re.MULTILINE)
     if not m:
@@ -1074,12 +1518,367 @@ def validate_report(text):
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
         if len(cells) < 3 or not cells[2]:
             problems.append("Acceptance row has no result: %s" % row.strip()[:60])
+        elif m and m.group(1) == "Done" and cells[2].lower() != "pass":
+            problems.append("Acceptance result must be pass for Status: Done: %s"
+                            % row.strip()[:80])
 
     for section in ("Assumptions", "Risks", "Blocked"):
         if not parse_section(text, section).strip():
             problems.append("%s is empty — write 'none' if it genuinely is" % section)
 
     return problems
+
+
+def acceptance_ids(text, heading):
+    """Return concrete acceptance IDs from one named evidence section, in order."""
+    return re.findall(r"\bAC-\d{3}\b", parse_section(text, heading))
+
+
+def validate_acceptance_trace(task_card, report_text=None, qa_text=None):
+    """Require the task, Worker, and Tester to prove exactly the same acceptance set."""
+    problems = []
+    task_list = acceptance_ids(task_card, "Acceptance")
+    task_ids = set(task_list)
+    if not task_ids:
+        problems.append("task card has no concrete AC-### acceptance rows")
+    if len(task_list) != len(task_ids):
+        problems.append("task card repeats an acceptance ID")
+
+    for label, text, heading in (
+            ("REPORT", report_text, "Acceptance"),
+            ("QA", qa_text, "Acceptance verified independently")):
+        if text is None:
+            continue
+        artifact_list = acceptance_ids(text, heading)
+        artifact_ids = set(artifact_list)
+        if len(artifact_list) != len(artifact_ids):
+            problems.append("%s repeats an acceptance ID" % label)
+        missing = sorted(task_ids - artifact_ids)
+        extra = sorted(artifact_ids - task_ids)
+        if missing or extra:
+            detail = []
+            if missing:
+                detail.append("missing %s" % ", ".join(missing))
+            if extra:
+                detail.append("extra %s" % ", ".join(extra))
+            problems.append("%s acceptance does not exactly match the task (%s)"
+                            % (label, "; ".join(detail)))
+    return problems
+
+
+def validate_qa_report(text, expected_task, artifact_prefix="QA"):
+    problems = []
+    if not re.search(r"^#\s+%s-\d{3}\s+.+\s+%s\b"
+                     % (re.escape(artifact_prefix), re.escape(expected_task)),
+                     text, re.MULTILINE):
+        problems.append("%s heading does not name %s" % (artifact_prefix, expected_task))
+    for section in ("Commands run", "Acceptance verified independently",
+                    "Findings", "Observations", "Regression"):
+        if not parse_section(text, section).strip():
+            problems.append("missing or empty section '## %s'" % section)
+
+    acceptance = parse_section(text, "Acceptance verified independently")
+    rows = [line for line in acceptance.splitlines()
+            if re.search(r"\bAC-\d{3}\b", line) and "|" in line]
+    if not rows:
+        problems.append("QA has no independently verified AC rows")
+    for row in rows:
+        cells = [cell.strip().lower() for cell in row.strip().strip("|").split("|")]
+        if len(cells) < 3 or cells[-1] != "pass":
+            problems.append("QA acceptance row is not pass: %s" % row.strip()[:80])
+
+    findings = parse_section(text, "Findings")
+    if re.search(r"\bSev-[12]\b", findings, re.IGNORECASE):
+        problems.append("QA contains an open Sev-1 or Sev-2 finding")
+
+    regression = parse_section(text, "Regression")
+    if not re.search(r"(?i)\bfull suite:\s*pass\b", regression):
+        problems.append("QA regression does not record a passing full suite")
+    if not re.search(r"(?i)\b0\s+failed\b", regression):
+        problems.append("QA regression does not record zero failures")
+    return problems
+
+
+def validate_ui_report(text, expected_task):
+    problems = []
+    if not re.search(r"^#\s+UI-\d{3}\s+.+\s+%s\b" % re.escape(expected_task),
+                     text, re.MULTILINE):
+        problems.append("UI heading does not name %s" % expected_task)
+    for field in ("Surfaces examined", "How"):
+        match = re.search(r"^%s:\s*(.+)$" % re.escape(field), text,
+                          re.MULTILINE | re.IGNORECASE)
+        if not match or not match.group(1).strip():
+            problems.append("missing or empty '%s:' field" % field)
+        elif re.search(r"<[^>]+>", match.group(1)):
+            problems.append("%s still contains a template placeholder" % field)
+    for section in ("Anti-generic bans", "Token discipline", "Data stress",
+                    "Required states", "The one deliberate decision", "Copy",
+                    "Findings", "Coverage"):
+        body = parse_section(text, section)
+        if not body.strip():
+            problems.append("missing or empty section '## %s'" % section)
+        elif re.search(r"<[^>]+>", body):
+            problems.append("section '## %s' contains template placeholders" % section)
+    findings = parse_section(text, "Findings")
+    if re.search(r"\bSev-[12]\b", findings, re.IGNORECASE):
+        problems.append("UI report contains an open Sev-1 or Sev-2 finding")
+    return problems
+
+
+def validate_product_owner_report(text):
+    problems = []
+    if not re.search(r"^#\s+.*\bPO-\d{3}\b", text, re.MULTILINE):
+        problems.append("heading does not name a PO-### artifact")
+    if not re.search(r"^Verdict:\s*PASS\s*$", text, re.MULTILINE):
+        problems.append("business verdict is not PASS")
+    if not re.search(r"\bBR-\d{3}\b", text):
+        problems.append("no business requirement is named")
+    if not re.search(r"(?i)\b(evidence|observed|measured|demonstrated)\b", text):
+        problems.append("no outcome evidence is recorded")
+    if re.search(r"<[^>]+>", text):
+        problems.append("business acceptance contains template placeholders")
+    if re.search(r"\bSev-[12]\b", text, re.IGNORECASE):
+        problems.append("business acceptance contains an open Sev-1 or Sev-2")
+    return problems
+
+
+def validate_verdict_report(text, expected_task, expected_outcome):
+    problems = []
+    if not re.search(r"^#\s+VERDICT\s+V-\d{3}\s+.+\s+%s\b" % re.escape(expected_task),
+                     text, re.MULTILINE):
+        problems.append("verdict heading does not name %s" % expected_task)
+    match = re.search(r"^Verdict:\s*(PASS|REWORK|BLOCKED)\s*$", text, re.MULTILINE)
+    if not match:
+        problems.append("missing typed 'Verdict:' line")
+    elif match.group(1) != expected_outcome:
+        problems.append("verdict artifact says %s, command requested %s"
+                        % (match.group(1), expected_outcome))
+
+    for section in ("Checks", "Orders", "Observations", "Loop state"):
+        if not parse_section(text, section).strip():
+            problems.append("missing or empty section '## %s'" % section)
+
+    checks = parse_section(text, "Checks")
+    rows = []
+    for line in checks.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 3 and cells[0].isdigit():
+            rows.append(cells)
+    if len(rows) < 9:
+        problems.append("%s verdict must record at least 9 checks" % expected_outcome)
+    numbers = [cells[0] for cells in rows]
+    missing_numbers = [str(number) for number in range(1, 10) if str(number) not in numbers]
+    duplicate_numbers = sorted(set(number for number in numbers if numbers.count(number) > 1))
+    if missing_numbers:
+        problems.append("verdict checks missing number(s): %s" % ", ".join(missing_numbers))
+    if duplicate_numbers:
+        problems.append("verdict checks repeat number(s): %s" % ", ".join(duplicate_numbers))
+    allowed_results = {"pass", "fail", "n/a"}
+    for cells in rows:
+        if cells[2].lower() not in allowed_results:
+            problems.append("verdict check %s has an unknown result" % cells[0])
+
+    failed = [cells for cells in rows if cells[2].lower() == "fail"]
+    if expected_outcome == "PASS":
+        for cells in failed:
+            problems.append("verdict check %s is not pass or n/a" % cells[0])
+        if re.search(r"\bR-\d{3}-\d{2}\b", parse_section(text, "Orders")):
+            problems.append("PASS verdict cannot contain rework orders")
+    elif expected_outcome == "REWORK":
+        if not failed:
+            problems.append("REWORK verdict must record at least one failed check")
+        if not re.search(r"\bR-\d{3}-\d{2}\b", parse_section(text, "Orders")):
+            problems.append("REWORK verdict must cite at least one numbered order")
+    elif expected_outcome == "BLOCKED":
+        if not failed:
+            problems.append("BLOCKED verdict must record at least one failed check")
+        if not re.search(r"(?i)\bblocked\b", parse_section(text, "Loop state")):
+            problems.append("BLOCKED verdict must state the block in Loop state")
+    return problems
+
+
+def validate_rework_order(text):
+    problems = []
+    heading = re.search(r"^##\s+(R-\d{3}-\d{2})\s+.+\s+Sev-([1-4])\s+.+\s+\S+",
+                        text, re.MULTILINE | re.IGNORECASE)
+    if not heading:
+        problems.append("missing '## R-###-## — Sev-# — title' heading")
+    fields = {}
+    for field in ("Finding-ID", "Domain", "DoD-impact", "Finding", "Evidence",
+                  "Required", "Re-check", "Cause"):
+        match = re.search(r"^%s:\s*(.+)$" % re.escape(field), text,
+                          re.MULTILINE | re.IGNORECASE)
+        if not match or not match.group(1).strip():
+            problems.append("missing or empty '%s:' field" % field)
+        else:
+            fields[field.lower()] = match.group(1).strip()
+    cause = re.search(r"^Cause:\s*(\w+)\s*$", text, re.MULTILINE | re.IGNORECASE)
+    if cause and cause.group(1).lower() not in ("code", "craft", "spec", "scope", "plan"):
+        problems.append("Cause must be code, craft, spec, scope or plan")
+    finding_id = fields.get("finding-id", "").lower()
+    if finding_id and not re.match(r"^[a-z0-9][a-z0-9.-]{2,63}$", finding_id):
+        problems.append("Finding-ID must be a stable 3-64 character lowercase slug")
+    domain = fields.get("domain", "").lower()
+    if domain and not re.match(r"^[a-z][a-z0-9-]{1,31}$", domain):
+        problems.append("Domain must be a lowercase slug")
+    dod_value = fields.get("dod-impact", "").lower()
+    if dod_value and dod_value not in ("yes", "no"):
+        problems.append("DoD-impact must be yes or no")
+
+    finding_text = fields.get("finding", "")
+    required_text = fields.get("required", "")
+    security_signal = bool(re.search(
+        r"(?i)\b(auth(?:entication|ori[sz]ation|z)?|access control|credential|secret|"
+        r"injection|xss|csrf|ssrf|tenant isolation|permission|encryption|security)\b",
+        finding_text + "\n" + required_text,
+    ))
+    effective_domain = "security" if security_signal else domain
+
+    dod_target = r"(?:dod\.md|definition of done|AC-\d{3}|acceptance criteri(?:on|a))"
+    change_verb = r"(?:change|edit|add|remove|soften|rewrite|re-?cut|update|modify)"
+    inferred_dod_change = bool(
+        re.search(r"(?i)\b%s\b[^\n]{0,100}\b%s\b" % (change_verb, dod_target),
+                  required_text)
+        or re.search(r"(?i)\b%s\b[^\n]{0,100}\b%s\b" % (dod_target, change_verb),
+                     required_text)
+    )
+    normalised_finding = re.sub(
+        r"[^a-z0-9]+", " ", finding_text.lower()
+    ).strip()
+    signature = hashlib.sha256(
+        ("%s\0%s" % (effective_domain, normalised_finding)).encode("utf-8")
+    ).hexdigest()
+    metadata = {
+        "order_id": heading.group(1).upper() if heading else None,
+        "severity": int(heading.group(2)) if heading else None,
+        "finding_id": finding_id or None,
+        "domain": effective_domain or None,
+        "dod_change": dod_value == "yes" or inferred_dod_change,
+        "signature": signature,
+        "finding": finding_text,
+    }
+    return metadata, problems
+
+
+def owned_directory_is_confined(subdir):
+    if not loop_root_is_confined():
+        return False
+    project_root = os.path.realpath(".")
+    loop_root = os.path.realpath(LOOP_DIR)
+    expected = os.path.realpath(os.path.join(LOOP_DIR, subdir))
+    try:
+        return (loop_root != project_root
+                and os.path.commonpath([project_root, loop_root]) == project_root
+                and os.path.commonpath([loop_root, expected]) == loop_root)
+    except ValueError:
+        return False
+
+
+def confined_artifact_path(raw, subdir):
+    """Resolve an evidence path and keep it inside its owned loop directory."""
+    if not raw:
+        return None, None
+    if not owned_directory_is_confined(subdir):
+        die("evidence directory escapes loop-project: %s" % os.path.join(LOOP_DIR, subdir))
+    expected = os.path.realpath(os.path.join(LOOP_DIR, subdir))
+    actual = os.path.realpath(raw)
+    try:
+        inside = os.path.commonpath([expected, actual]) == expected
+    except ValueError:
+        inside = False
+    if not inside:
+        die("artifact must be inside %s" % os.path.join(LOOP_DIR, subdir))
+    rel = os.path.relpath(actual, ".").replace("\\", "/")
+    return actual, rel
+
+
+def validate_recorded_pass_evidence(tid, task):
+    """Rebuild trust in a stored PASS without trusting mutable state or paths."""
+    validation_problems = []
+    hash_problems = []
+    evidence_hashes = task.get("evidence_hashes") or {}
+    paths = {
+        "task": os.path.join(LOOP_DIR, "2-build/tasks", tid + ".md"),
+        "report": os.path.join(LOOP_DIR, "2-build/reports", tid + ".report.md"),
+        "qa": task.get("qa_file"),
+        "verdict": task.get("verdict_file"),
+    }
+    owned_dirs = {
+        "task": os.path.join(LOOP_DIR, "2-build/tasks"),
+        "report": os.path.join(LOOP_DIR, "2-build/reports"),
+        "qa": os.path.join(LOOP_DIR, "3-verify/qa"),
+        "verdict": os.path.join(LOOP_DIR, "3-verify/verdicts"),
+    }
+
+    resolved = {}
+    for label, raw in paths.items():
+        if not raw:
+            validation_problems.append("%s: no recorded artifact path" % label)
+            hash_problems.append("%s: no recorded artifact hash" % label)
+            continue
+        expected = os.path.realpath(owned_dirs[label])
+        loop_root = os.path.realpath(LOOP_DIR)
+        try:
+            owned_dir_safe = os.path.commonpath([loop_root, expected]) == loop_root
+        except ValueError:
+            owned_dir_safe = False
+        if not owned_dir_safe:
+            validation_problems.append("%s: evidence directory escapes loop-project" % label)
+            hash_problems.append("%s: untrusted evidence directory" % label)
+            continue
+        actual = os.path.realpath(raw)
+        try:
+            inside = os.path.commonpath([expected, actual]) == expected
+        except ValueError:
+            inside = False
+        if not inside:
+            validation_problems.append("%s: artifact path escapes %s" % (label, owned_dirs[label]))
+            hash_problems.append("%s: untrusted artifact path" % label)
+            continue
+        if not os.path.isfile(actual):
+            validation_problems.append("%s: artifact is missing" % label)
+            hash_problems.append("%s: artifact is missing" % label)
+            continue
+        resolved[label] = actual
+        recorded_hash = evidence_hashes.get(label)
+        current_hash = sha256_of(actual)
+        if not recorded_hash:
+            hash_problems.append("%s: no recorded hash" % label)
+        elif recorded_hash != current_hash:
+            hash_problems.append("%s: content changed after verdict" % label)
+
+    report_path = resolved.get("report")
+    if report_path:
+        report = read(report_path)
+        report_problems = validate_report(report, tid)
+        status = re.search(r"^Status:\s*(\w+)", report, re.MULTILINE)
+        if not status or status.group(1) != "Done":
+            report_problems.append("Status must be Done")
+        validation_problems.extend("report: " + problem for problem in report_problems)
+
+    qa_path = resolved.get("qa")
+    if qa_path:
+        validation_problems.extend(
+            "qa: " + problem for problem in validate_qa_report(read(qa_path), tid)
+        )
+
+    card_path = resolved.get("task")
+    if card_path and report_path and qa_path:
+        validation_problems.extend(
+            "acceptance: " + problem
+            for problem in validate_acceptance_trace(
+                read(card_path), read(report_path), read(qa_path)
+            )
+        )
+
+    verdict_path = resolved.get("verdict")
+    if verdict_path:
+        validation_problems.extend(
+            "verdict: " + problem
+            for problem in validate_verdict_report(read(verdict_path), tid, "PASS")
+        )
+
+    return validation_problems, hash_problems
 
 
 def cmd_verify(args):
@@ -1094,26 +1893,40 @@ def cmd_verify(args):
 
     if not os.path.exists(card_path):
         die("no task card at %s" % card_path)
+    report_path, _ = confined_artifact_path(report_path, "2-build/reports")
     card = read(card_path)
 
     # 1 evidence
-    if not os.path.exists(report_path):
+    if not os.path.isfile(report_path):
         r.add("evidence complete", False, "no REPORT at %s" % report_path, "2")
         code = r.render("verify %s" % tid)
         print("\nVerdict input: REWORK. Do not open the diff — the missing report is the finding.")
         return code
     report = read(report_path)
-    problems = validate_report(report)
+    problems = validate_report(report, tid)
     r.add("report schema", not problems,
           "ok" if not problems else "%d problem(s)" % len(problems), "2")
     for p in problems:
         print("    - " + p)
+    trace_problems = validate_acceptance_trace(card, report)
+    r.add("acceptance trace exact", not trace_problems,
+          "task and REPORT match" if not trace_problems
+          else "%d problem(s)" % len(trace_problems), "1")
+    for problem in trace_problems:
+        print("    - " + problem)
 
     # 2 scope
-    files = changed_files()
+    task_state = state.get("tasks", {}).get(tid, {})
+    base_sha = task_state.get("base_sha")
+    git_repo = has_git()
+    baseline_valid = not git_repo or git_commit_exists(base_sha)
+    if git_repo:
+        r.add("Git baseline valid", baseline_valid,
+              base_sha if baseline_valid else "missing or not a commit", "1")
+    files = changed_files(base_sha) if baseline_valid else None
     write_globs = parse_globs(parse_section(card, "Write-set"))
     if files is None:
-        r.add("scope intact", True, "skipped (no git repository)")
+        r.add("scope intact", False, "unverifiable without a valid Git baseline", "1")
     elif not write_globs:
         r.add("scope intact", False, "task card declares no write-set", "2")
     else:
@@ -1124,19 +1937,25 @@ def cmd_verify(args):
               "%d changed, %d outside write-set" % (len(code_files), len(outside)), "2")
         for f in outside:
             print("    - outside write-set: %s" % f)
+        escaped_paths = check_changed_path_confinement(code_files)
+        r.add("changed paths confined", not escaped_paths,
+              "inside project" if not escaped_paths
+              else "%d escaping path(s)" % len(escaped_paths), "1")
+        for path in escaped_paths:
+            print("    - " + path)
 
     # 3 test integrity
     if files is None:
-        r.add("test integrity", True, "skipped (no git repository)")
+        r.add("test integrity", False, "unverifiable without a valid Git baseline", "1")
     else:
-        tamper = check_test_tampering(files)
+        tamper = check_test_tampering(files, base_sha)
         r.add("test integrity", not tamper,
               "clean" if not tamper else "%d finding(s)" % len(tamper), "1")
         for t in tamper:
             print("    - " + t)
 
     # 4 secrets
-    scan_targets = files if files is not None else []
+    scan_targets = files if files is not None else project_files()
     secrets = check_secrets(scan_targets)
     r.add("no secrets introduced", not secrets,
           "clean" if not secrets else "%d finding(s)" % len(secrets), "1")
@@ -1157,11 +1976,18 @@ def cmd_verify(args):
     if files is not None:
         code_files = [f for f in files
                       if not f.startswith(LOOP_DIR) and os.path.isfile(f)]
-        new_files = []
-        for f in code_files:
-            code_g, out_g, _ = git("ls-files", "--error-unmatch", f)
-            if code_g != 0:
-                new_files.append(f)
+        if base_sha:
+            code_g, out_g, _ = git(
+                "diff", "--name-only", "-z", "--diff-filter=A", base_sha, "--"
+            )
+            added = set(out_g.split("\0")) if code_g == 0 else set()
+            new_files = [f for f in code_files if f in added]
+        else:
+            new_files = []
+            for f in code_files:
+                code_g, out_g, _ = git("ls-files", "--error-unmatch", f)
+                if code_g != 0:
+                    new_files.append(f)
 
         dupes = check_duplication(new_files, source_files())
         r.add("no duplicated components", not dupes,
@@ -1196,45 +2022,273 @@ def cmd_verify(args):
 # --------------------------------------------------------------------------- cycle
 
 def cmd_cycle(args):
+    die("cycle is retired because it can bypass verdict evidence; "
+        "use: loop.py verdict TASK-### rework --file ... --order ...")
+
+
+# --------------------------------------------------------------------------- verdict
+
+def cmd_verdict(args):
     state = require_state()
+    if state.get("status") != "ACTIVE":
+        die("verdicts can only be recorded while the loop is ACTIVE")
+    if (state.get("gates", {}).get("g0", {}).get("passed")
+            and not state.get("frozen_roles")):
+        die("the approved role roster is missing; run the audited migrate command first")
     tid = args.task.upper()
-    tasks = state.setdefault("tasks", {})
+    if not re.match(r"^TASK-\d{3}$", tid):
+        die("task id must look like TASK-007")
+    tasks = state.get("tasks", {})
     if tid not in tasks:
-        tasks[tid] = {"title": "", "cycles": 0, "verdict": None, "findings": {}}
-    t = tasks[tid]
-    t["cycles"] = t.get("cycles", 0) + 1
-    t["verdict"] = "REWORK"
+        die("unknown task %s" % tid)
 
-    if args.finding:
-        f = t.setdefault("findings", {})
-        f[args.finding] = f.get(args.finding, 0) + 1
+    outcome = args.outcome.upper()
+    if outcome == "PASS":
+        if not state.get("gates", {}).get("g1", {}).get("passed"):
+            die("PASS verdicts require G1 to have passed")
+        if state.get("phase") not in (2, 3):
+            die("PASS verdicts can only be recorded during Build or Verify")
+        r = Result()
+        report_path, _ = confined_artifact_path(
+            os.path.join(LOOP_DIR, "2-build/reports", tid + ".report.md"),
+            "2-build/reports",
+        )
+        r.add("Worker REPORT", os.path.isfile(report_path),
+              report_path if os.path.isfile(report_path) else "Worker REPORT missing", "1")
+        qa_path, qa_rel = confined_artifact_path(args.qa, "3-verify/qa")
+        r.add("Tester QA", bool(qa_path) and os.path.isfile(qa_path),
+              qa_path if qa_path and os.path.isfile(qa_path) else "Tester QA missing", "1")
+        verdict_path, verdict_rel = confined_artifact_path(args.file, "3-verify/verdicts")
+        r.add("Judge verdict", bool(verdict_path) and os.path.isfile(verdict_path),
+              verdict_path if verdict_path and os.path.isfile(verdict_path)
+              else "Judge verdict missing", "1")
+        if r.failed:
+            return r.render("verdict %s PASS" % tid)
 
-    reasons = []
-    if t["cycles"] > MAX_CYCLES_PER_TASK:
-        reasons.append("%s exceeded %d cycles — the task was cut wrong (Phase 0/1 defect)"
-                       % (tid, MAX_CYCLES_PER_TASK))
-    for finding, count in t.get("findings", {}).items():
-        if count >= MAX_REPEAT_FINDING:
-            reasons.append("finding '%s' has failed %d cycles on %s" % (finding, count, tid))
+        report_problems = validate_report(read(report_path), tid)
+        status = re.search(r"^Status:\s*(\w+)", read(report_path), re.MULTILINE)
+        if not status or status.group(1) != "Done":
+            report_problems.append("Worker REPORT Status must be Done")
+        qa_problems = validate_qa_report(read(qa_path), tid)
+        verdict_problems = validate_verdict_report(read(verdict_path), tid, outcome)
+        card_path = os.path.join(LOOP_DIR, "2-build/tasks", tid + ".md")
+        trace_problems = validate_acceptance_trace(
+            read(card_path), read(report_path), read(qa_path)
+        )
+        r.add("Worker REPORT valid", not report_problems,
+              "valid" if not report_problems else "%d problem(s)" % len(report_problems), "1")
+        r.add("Tester QA valid", not qa_problems,
+              "valid" if not qa_problems else "%d problem(s)" % len(qa_problems), "1")
+        r.add("Judge verdict valid", not verdict_problems,
+              "valid" if not verdict_problems else "%d problem(s)" % len(verdict_problems), "1")
+        r.add("acceptance trace exact", not trace_problems,
+              "task, REPORT, and QA match" if not trace_problems
+              else "%d problem(s)" % len(trace_problems), "1")
+        for label, problems in (("REPORT", report_problems), ("QA", qa_problems),
+                                ("verdict", verdict_problems),
+                                ("acceptance", trace_problems)):
+            for problem in problems:
+                print("    - %s: %s" % (label, problem))
+        mechanical_code = cmd_verify(argparse.Namespace(task=tid))
+        r.add("mechanical task verification", mechanical_code == 0,
+              "passed" if mechanical_code == 0 else "failed", "1")
+        if r.failed:
+            return r.render("verdict %s PASS" % tid)
 
-    print("%s cycle %d" % (tid, t["cycles"]))
-
-    if reasons:
-        state["status"] = "BLOCKED"
-        state["blocked_reason"] = "; ".join(reasons)
+        code, head, _ = git("rev-parse", "HEAD")
+        task = tasks[tid]
+        result_fingerprint, result_files = result_snapshot(task.get("base_sha"))
+        task["verdict"] = "PASS"
+        task["verdict_at"] = now()
+        task["qa_file"] = qa_rel
+        task["verdict_file"] = verdict_rel
+        task["result_sha"] = head.strip() if code == 0 else None
+        task["result_fingerprint"] = result_fingerprint
+        task["result_files"] = result_files
+        task["mechanical_verification"] = {
+            "passed": True,
+            "at": now(),
+            "base_sha": task.get("base_sha"),
+            "result_fingerprint": result_fingerprint,
+        }
+        task["evidence_hashes"] = {
+            "task": sha256_of(card_path),
+            "report": sha256_of(report_path),
+            "qa": sha256_of(qa_path),
+            "verdict": sha256_of(verdict_path),
+        }
         save_state(state)
-        ledger("BLOCKED on %s.\n%s\n\nWrite the options and a recommendation, then stop."
-               % (tid, "\n".join("- " + x for x in reasons)))
-        print("\nBLOCKED:")
-        for x in reasons:
-            print("  - " + x)
-        print("\nStop. Write the decision the human needs into ledger.md and present it.")
-        return 1
+        ledger("%s recorded PASS from %s and %s."
+               % (tid, qa_rel, verdict_rel))
+        r.render("verdict %s PASS" % tid)
+        print("\n%s recorded PASS. G3 will independently revalidate these artifacts." % tid)
+        return 0
 
-    save_state(state)
-    print("Within limits (%d/%d). Issue rework orders and continue."
-          % (t["cycles"], MAX_CYCLES_PER_TASK))
-    return 0
+    if not state.get("gates", {}).get("g1", {}).get("passed"):
+        die("%s verdicts require G1 to have passed" % outcome)
+    if state.get("phase") not in (2, 3):
+        die("%s verdicts can only be recorded during Build or Verify" % outcome)
+
+    verdict_path, verdict_rel = confined_artifact_path(args.file, "3-verify/verdicts")
+    r = Result()
+    r.add("Judge verdict artifact", bool(verdict_path) and os.path.isfile(verdict_path),
+          verdict_path if verdict_path and os.path.isfile(verdict_path)
+          else "Judge verdict artifact missing", "1")
+    if r.failed:
+        return r.render("verdict %s %s" % (tid, outcome))
+
+    verdict_text = read(verdict_path)
+    verdict_problems = validate_verdict_report(verdict_text, tid, outcome)
+    r.add("Judge verdict valid", not verdict_problems,
+          "valid" if not verdict_problems else "%d problem(s)" % len(verdict_problems), "1")
+    for problem in verdict_problems:
+        print("    - verdict: " + problem)
+
+    if outcome == "REWORK":
+        order_paths = []
+        order_ids = []
+        order_metadata = []
+        order_problems = []
+        for raw in args.order or []:
+            path, rel = confined_artifact_path(raw, "3-verify/rework")
+            if not path or not os.path.isfile(path):
+                order_problems.append("%s: artifact is missing" % (raw or "<unspecified>"))
+                continue
+            metadata, problems = validate_rework_order(read(path))
+            order_id = metadata.get("order_id")
+            if order_id and not re.search(r"\b%s\b" % re.escape(order_id),
+                                          parse_section(verdict_text, "Orders")):
+                problems.append("%s is not cited by the Judge verdict" % order_id)
+            order_paths.append((path, rel))
+            if order_id:
+                order_ids.append(order_id)
+            order_metadata.append(metadata)
+            order_problems.extend("%s: %s" % (rel, problem) for problem in problems)
+        if not order_paths:
+            order_problems.append("at least one rework order artifact is required")
+        cited_ids = set(re.findall(r"\bR-\d{3}-\d{2}\b",
+                                   parse_section(verdict_text, "Orders")))
+        provided_ids = set(order_ids)
+        for missing_id in sorted(cited_ids - provided_ids):
+            order_problems.append("missing artifact for cited order %s" % missing_id)
+        for extra_id in sorted(provided_ids - cited_ids):
+            order_problems.append("artifact %s is not cited by the Judge verdict" % extra_id)
+        if len(order_ids) != len(provided_ids):
+            order_problems.append("duplicate rework order artifacts were supplied")
+        task = tasks[tid]
+        known_orders = task.get("order_findings") or {}
+        known_signatures = task.get("finding_signatures") or {}
+        for metadata in order_metadata:
+            order_id = metadata.get("order_id")
+            finding_id = metadata.get("finding_id")
+            signature = metadata.get("signature")
+            order_canonical = known_orders.get(order_id)
+            signature_canonical = known_signatures.get(signature)
+            if (order_canonical and signature_canonical
+                    and order_canonical != signature_canonical):
+                order_problems.append(
+                    "%s conflicts with the previously recorded finding signature" % order_id
+                )
+            canonical = order_canonical or signature_canonical
+            if canonical and finding_id != canonical:
+                metadata["declared_finding_id"] = finding_id
+                metadata["finding_id"] = canonical
+        r.add("rework order artifact", not order_problems,
+              "%d valid order(s)" % len(order_paths) if not order_problems
+              else "%d problem(s)" % len(order_problems), "1")
+        for problem in order_problems:
+            print("    - order: " + problem)
+        if r.failed:
+            return r.render("verdict %s REWORK" % tid)
+
+        task["cycles"] = task.get("cycles", 0) + 1
+        task["verdict"] = "REWORK"
+        task["verdict_at"] = now()
+        task["verdict_file"] = verdict_rel
+        task["rework_files"] = [rel for _, rel in order_paths]
+        task["rework_metadata"] = [
+            {
+                "order_id": metadata["order_id"],
+                "finding_id": metadata["finding_id"],
+                "severity": metadata["severity"],
+                "domain": metadata["domain"],
+                "dod_change": metadata["dod_change"],
+            }
+            for metadata in order_metadata
+        ]
+        task.pop("qa_file", None)
+        findings = task.setdefault("findings", {})
+        cycle_findings = set(metadata["finding_id"] for metadata in order_metadata)
+        for finding in cycle_findings:
+            findings[finding] = findings.get(finding, 0) + 1
+        order_findings = task.setdefault("order_findings", {})
+        finding_signatures = task.setdefault("finding_signatures", {})
+        for metadata in order_metadata:
+            order_findings[metadata["order_id"]] = metadata["finding_id"]
+            finding_signatures[metadata["signature"]] = metadata["finding_id"]
+        security_findings = task.setdefault("security_sev1_findings", {})
+        security_sev1_labels = set(
+            metadata["finding_id"] for metadata in order_metadata
+            if metadata["severity"] == 1 and metadata["domain"] == "security"
+        )
+        for finding in security_sev1_labels:
+            security_findings[finding] = security_findings.get(finding, 0) + 1
+        task["evidence_hashes"] = {
+            "verdict": sha256_of(verdict_path),
+            "orders": {rel: sha256_of(path) for path, rel in order_paths},
+        }
+
+        reasons = []
+        if any(metadata["dod_change"] for metadata in order_metadata):
+            reasons.append("%s rework would change the frozen Definition of Done" % tid)
+        if task["cycles"] > MAX_CYCLES_PER_TASK:
+            reasons.append("%s exceeded %d cycles — the task was cut wrong"
+                           % (tid, MAX_CYCLES_PER_TASK))
+        for finding, count in findings.items():
+            if count >= MAX_REPEAT_FINDING:
+                reasons.append("finding '%s' has failed %d cycles on %s"
+                               % (finding, count, tid))
+        for finding, count in security_findings.items():
+            if count >= 2:
+                reasons.append("Sev-1 security finding '%s' recurred on %s"
+                               % (finding, tid))
+        if reasons:
+            task["verdict"] = "BLOCKED"
+            state["status"] = "BLOCKED"
+            state["blocked_reason"] = "; ".join(reasons)
+        save_state(state)
+        ledger("%s recorded %s at cycle %d from %s; orders: %s."
+               % (tid, task["verdict"], task["cycles"], verdict_rel,
+                  ", ".join(order_ids)))
+        if reasons:
+            r.add("loop stop conditions", False, "; ".join(reasons), "1")
+            r.render("verdict %s REWORK" % tid)
+            print("\nThe requested REWORK crossed a hard stop. Status is BLOCKED.")
+            return 1
+        r.render("verdict %s REWORK" % tid)
+        print("\n%s recorded REWORK cycle %d." % (tid, task["cycles"]))
+        return 0
+
+    if outcome == "BLOCKED":
+        if not (args.reason or "").strip():
+            die("BLOCKED verdicts require --reason with the decision the human must make")
+        if r.failed:
+            return r.render("verdict %s BLOCKED" % tid)
+        task = tasks[tid]
+        task["verdict"] = "BLOCKED"
+        task["verdict_at"] = now()
+        task["verdict_file"] = verdict_rel
+        task["evidence_hashes"] = {"verdict": sha256_of(verdict_path)}
+        state["status"] = "BLOCKED"
+        state["blocked_reason"] = args.reason.strip()
+        save_state(state)
+        ledger("%s recorded BLOCKED from %s.\nDecision needed: %s"
+               % (tid, verdict_rel, args.reason.strip()))
+        r.render("verdict %s BLOCKED" % tid)
+        print("\nLoop BLOCKED. Present the recorded decision to a human and stop.")
+        return 0
+
+    die("unknown verdict outcome: %s" % outcome)
 
 
 # --------------------------------------------------------------------------- gates
@@ -1265,6 +2319,11 @@ def placeholders_in(path):
 
 def gate_checks(gate, state):
     r = Result()
+
+    if gate in ("g1", "g2"):
+        r.add("approved role roster frozen", bool(state.get("frozen_roles")),
+              "%d frozen roles" % len(state.get("frozen_roles") or [])
+              if state.get("frozen_roles") else "run the audited migrate command", "1")
     p = lambda *a: os.path.join(LOOP_DIR, *a)
 
     def nonempty(path, min_chars=120):
@@ -1422,40 +2481,251 @@ def gate_checks(gate, state):
         tasks = state.get("tasks", {})
         r.add("tasks exist", bool(tasks), "%d tasks" % len(tasks))
         missing_reports = [t for t in tasks
-                           if not os.path.exists(p("2-build/reports", t + ".report.md"))]
+                           if not os.path.isfile(p("2-build/reports", t + ".report.md"))]
         r.add("every task has a REPORT", not missing_reports,
               "missing: %s" % (", ".join(sorted(missing_reports)) or "none"))
+        invalid_reports = {}
+        for tid in tasks:
+            report_path = p("2-build/reports", tid + ".report.md")
+            if not os.path.isfile(report_path):
+                continue
+            report_path, _ = confined_artifact_path(report_path, "2-build/reports")
+            report = read(report_path)
+            problems = validate_report(report, tid)
+            status = re.search(r"^Status:\s*(\w+)", report, re.MULTILINE)
+            if status and status.group(1) != "Done":
+                problems.append("Status must be Done before G2")
+            task_path = p("2-build/tasks", tid + ".md")
+            if not os.path.isfile(task_path):
+                problems.append("task card is missing")
+            else:
+                problems.extend(validate_acceptance_trace(read(task_path), report))
+            if problems:
+                invalid_reports[tid] = problems
+        r.add("every REPORT schema-valid", not invalid_reports,
+              "invalid: %s" % (", ".join(sorted(invalid_reports)) or "none"))
+        for tid, problems in sorted(invalid_reports.items()):
+            for problem in problems[:4]:
+                print("    - %s: %s" % (tid, problem))
 
     elif gate == "g3":
         tasks = state.get("tasks", {})
+        r.add("approved role roster frozen", bool(state.get("frozen_roles")),
+              "%d frozen roles" % len(state.get("frozen_roles") or [])
+              if state.get("frozen_roles") else "run the audited migration command", "1")
+        r.add("tasks exist", bool(tasks), "%d tasks" % len(tasks))
         open_tasks = [t for t, v in tasks.items() if v.get("verdict") != "PASS"]
         r.add("all tasks PASS", not open_tasks,
               "open: %s" % (", ".join(sorted(open_tasks)) or "none"))
+        evidence_problems = {}
+        evidence_hash_problems = {}
+        for tid, task in sorted(tasks.items()):
+            if task.get("verdict") != "PASS":
+                continue
+            validation, hashes = validate_recorded_pass_evidence(tid, task)
+            if validation:
+                evidence_problems[tid] = validation
+            if hashes:
+                evidence_hash_problems[tid] = hashes
+        r.add("PASS evidence independently valid", not evidence_problems,
+              "invalid: %s" % (", ".join(evidence_problems) or "none"), "1")
+        r.add("PASS evidence hashes intact", not evidence_hash_problems,
+              "changed: %s" % (", ".join(evidence_hash_problems) or "none"), "1")
+        for tid, problems in evidence_problems.items():
+            for problem in problems[:6]:
+                print("    - %s: %s" % (tid, problem))
+        for tid, problems in evidence_hash_problems.items():
+            for problem in problems[:6]:
+                print("    - %s: %s" % (tid, problem))
+        changed_results = []
+        missing_receipts = []
+        for tid, task in sorted(tasks.items()):
+            if task.get("verdict") != "PASS":
+                continue
+            recorded_files = task.get("result_files")
+            if not isinstance(recorded_files, list):
+                changed_results.append(tid)
+                continue
+            current_result, _ = snapshot_paths(recorded_files)
+            if not task.get("result_fingerprint") or current_result != task.get("result_fingerprint"):
+                changed_results.append(tid)
+            receipt = task.get("mechanical_verification") or {}
+            if (not receipt.get("passed")
+                    or receipt.get("base_sha") != task.get("base_sha")
+                    or receipt.get("result_fingerprint") != task.get("result_fingerprint")):
+                missing_receipts.append(tid)
+        r.add("PASS result snapshots intact", not changed_results,
+              "changed: %s" % (", ".join(changed_results) or "none"), "1")
+        r.add("PASS mechanical receipts intact", not missing_receipts,
+              "missing or inconsistent: %s" % (", ".join(missing_receipts) or "none"), "1")
+        attributed_paths = set()
+        post_verdict_paths = set()
+        invalid_result_boundaries = []
+        for tid, task in sorted(tasks.items()):
+            if task.get("verdict") != "PASS":
+                continue
+            attributed_paths.update(task.get("result_files") or [])
+            result_sha = task.get("result_sha")
+            if not git_commit_exists(result_sha):
+                invalid_result_boundaries.append(tid)
+                continue
+            boundary_delta = changed_files(result_sha)
+            if boundary_delta is None:
+                invalid_result_boundaries.append(tid)
+                continue
+            post_verdict_paths.update(
+                path for path in boundary_delta
+                if path != LOOP_DIR
+                and not path.startswith(LOOP_DIR + "/")
+                and not path.startswith(LOOP_DIR + ".archive-")
+            )
+        unattributed_paths = sorted(post_verdict_paths - attributed_paths)
+        r.add("PASS Git result boundaries valid", not invalid_result_boundaries,
+              "invalid: %s" % (", ".join(invalid_result_boundaries) or "none"), "1")
+        r.add("every final changed path attributed", not unattributed_paths,
+              "unowned: %s" % (", ".join(unattributed_paths) or "none"), "1")
+        for path in unattributed_paths[:12]:
+            print("    - unowned final path: " + path)
+        if len(unattributed_paths) > 12:
+            print("    - ... and %d more" % (len(unattributed_paths) - 12))
+        required_acs = set()
+        if os.path.exists(p("0-plan/dod.md")):
+            required_acs.update(re.findall(r"\bAC-\d{3}\b", read(p("0-plan/dod.md"))))
+        covered_acs = set()
+        for task in tasks.values():
+            qa_file = task.get("qa_file")
+            if task.get("verdict") != "PASS" or not qa_file or not os.path.isfile(qa_file):
+                continue
+            acceptance = parse_section(read(qa_file), "Acceptance verified independently")
+            for line in acceptance.splitlines():
+                if re.search(r"(?i)\|\s*pass\s*\|?\s*$", line):
+                    covered_acs.update(re.findall(r"\bAC-\d{3}\b", line))
+        missing_acs = sorted(required_acs - covered_acs)
+        r.add("frozen DoD acceptance covered", not missing_acs,
+              "missing: %s" % (", ".join(missing_acs) or "none"), "1")
         current = sha256_of(p("0-plan/dod.md"))
         frozen = state.get("dod_hash")
         r.add("DoD unchanged since G0", bool(frozen) and current == frozen,
               "hash match" if frozen and current == frozen else "drift or never frozen", "1")
-        files = changed_files()
-        if files is not None:
-            secrets = check_secrets(files)
-            r.add("no secrets in working tree", not secrets,
-                  "%d finding(s)" % len(secrets), "1")
+        secrets = check_secrets(project_files())
+        r.add("no secrets in project tree", not secrets,
+              "%d finding(s)" % len(secrets), "1")
+        history_secrets = check_git_history_secrets()
+        r.add("no strong secrets in Git history",
+              history_secrets == [],
+              ("clean" if history_secrets == [] else
+               "scan unavailable" if history_secrets is None else
+               "%d finding(s)" % len(history_secrets)), "1")
+        for secret in (history_secrets or []):
+            print("    - " + secret)
         r.add("README present", os.path.exists("README.md") or os.path.exists("readme.md"),
               "install, run, test, deploy")
         if role_enabled(state, "adversary"):
-            secs = artifacts_in("3-verify/qa", "SEC-")
-            r.add("adversary pass recorded", bool(secs),
-                  "%d SEC report(s)" % len(secs) if secs else "no SEC-###.md in 3-verify/qa", "1")
+            evidence_dir_safe = owned_directory_is_confined("3-verify/qa")
+            secs = artifacts_in("3-verify/qa", "SEC-") if evidence_dir_safe else []
+            valid_tasks = set()
+            invalid = ({} if evidence_dir_safe else
+                       {"3-verify/qa": ["evidence directory escapes loop-project"]})
+            for filename in secs:
+                path = p("3-verify/qa", filename)
+                text = read(path) if os.path.isfile(path) and not os.path.islink(path) else ""
+                task_match = re.search(r"^#\s+SEC-\d{3}\s+.+\s+(TASK-\d{3})\b",
+                                       text, re.MULTILINE)
+                tid = task_match.group(1) if task_match else None
+                problems = (validate_qa_report(text, tid, "SEC") if tid else
+                            ["SEC heading does not name a task"])
+                if tid not in tasks:
+                    problems.append("SEC report names an unknown task")
+                if problems:
+                    invalid[filename] = problems
+                else:
+                    valid_tasks.add(tid)
+            missing = sorted(set(tasks) - valid_tasks)
+            r.add("adversary evidence valid", bool(secs) and not invalid and not missing,
+                  "invalid: %s; missing tasks: %s"
+                  % (", ".join(sorted(invalid)) or "none", ", ".join(missing) or "none"), "1")
+            for filename, problems in sorted(invalid.items()):
+                for problem in problems[:4]:
+                    print("    - %s: %s" % (filename, problem))
         if role_enabled(state, "ui-critic"):
-            uis = artifacts_in("3-verify/qa", "UI-")
-            r.add("ui critique recorded", bool(uis),
-                  "%d UI report(s)" % len(uis) if uis else "no UI-###.md in 3-verify/qa")
+            evidence_dir_safe = owned_directory_is_confined("3-verify/qa")
+            uis = artifacts_in("3-verify/qa", "UI-") if evidence_dir_safe else []
+            valid_tasks = set()
+            invalid = ({} if evidence_dir_safe else
+                       {"3-verify/qa": ["evidence directory escapes loop-project"]})
+            for filename in uis:
+                path = p("3-verify/qa", filename)
+                text = read(path) if os.path.isfile(path) and not os.path.islink(path) else ""
+                task_match = re.search(r"^#\s+UI-\d{3}\s+.+\s+(TASK-\d{3})\b",
+                                       text, re.MULTILINE)
+                tid = task_match.group(1) if task_match else None
+                problems = (validate_ui_report(text, tid) if tid else
+                            ["UI heading does not name a task"])
+                if tid not in tasks:
+                    problems.append("UI report names an unknown task")
+                if problems:
+                    invalid[filename] = problems
+                else:
+                    valid_tasks.add(tid)
+            missing = sorted(set(tasks) - valid_tasks)
+            r.add("UI critique evidence valid", bool(uis) and not invalid and not missing,
+                  "invalid: %s; missing tasks: %s"
+                  % (", ".join(sorted(invalid)) or "none", ", ".join(missing) or "none"), "1")
+            for filename, problems in sorted(invalid.items()):
+                for problem in problems[:4]:
+                    print("    - %s: %s" % (filename, problem))
         if role_enabled(state, "product-owner"):
-            pos = artifacts_in("3-verify/verdicts", "PO-")
-            r.add("business acceptance recorded", bool(pos),
-                  "%d PO verdict(s)" % len(pos) if pos else "no PO-###.md in 3-verify/verdicts")
+            evidence_dir_safe = owned_directory_is_confined("3-verify/verdicts")
+            pos = artifacts_in("3-verify/verdicts", "PO-") if evidence_dir_safe else []
+            invalid = ({} if evidence_dir_safe else
+                       {"3-verify/verdicts": ["evidence directory escapes loop-project"]})
+            for filename in pos:
+                path = p("3-verify/verdicts", filename)
+                text = read(path) if os.path.isfile(path) and not os.path.islink(path) else ""
+                problems = validate_product_owner_report(text)
+                if problems:
+                    invalid[filename] = problems
+            r.add("business acceptance valid", bool(pos) and not invalid,
+                  "invalid: %s" % (", ".join(sorted(invalid)) or "none"), "1")
+            for filename, problems in sorted(invalid.items()):
+                for problem in problems[:4]:
+                    print("    - %s: %s" % (filename, problem))
 
     return r
+
+
+def cmd_approve(args):
+    state = require_state()
+    gate = args.gate.lower()
+    if gate not in GATES:
+        die("gate must be one of: %s" % ", ".join(GATES))
+    if gate not in state.get("human_gates", []):
+        die("%s is not configured as a human gate" % gate.upper())
+    if state["gates"][gate]["passed"]:
+        die("%s has already passed" % gate.upper())
+    if not args.by.strip():
+        die("approver identity must not be blank")
+
+    r = gate_checks(gate, state)
+    code = r.render("approve %s" % gate.upper())
+    if code:
+        print("\nRefusing approval while gate checks are failing.")
+        return code
+
+    state.setdefault("approvals", {})[gate] = {
+        "approved": True,
+        "by": args.by.strip(),
+        "at": now(),
+        "note": (args.note or "").strip(),
+        "fingerprint": approval_fingerprint(gate, state),
+    }
+    save_state(state)
+    ledger("%s approved by %s.%s" % (
+        gate.upper(), args.by.strip(),
+        ("\nNote: " + args.note.strip()) if args.note else ""))
+    print("\n%s human approval recorded for %s." % (gate.upper(), args.by.strip()))
+    print("Run: loop.py gate %s --pass" % gate)
+    return 0
 
 
 def cmd_gate(args):
@@ -1463,6 +2733,23 @@ def cmd_gate(args):
     gate = args.gate.lower()
     if gate not in GATES:
         die("gate must be one of: %s" % ", ".join(GATES))
+
+    previous = {"g0": None, "g1": "g0", "g2": "g1", "g3": "g2"}[gate]
+    if args.pass_gate and state["gates"][gate]["passed"]:
+        die("%s has already passed" % gate.upper())
+    if args.pass_gate and state.get("status") != "ACTIVE":
+        die("gates can only pass while the loop is ACTIVE")
+    if args.pass_gate and previous and not state["gates"][previous]["passed"]:
+        die("%s requires %s to have passed" % (gate.upper(), previous.upper()))
+    approval = state.get("approvals", {}).get(gate, {})
+    if args.pass_gate and gate in state.get("human_gates", []) and not approval.get("approved"):
+        die("%s requires human approval. Run: loop.py approve %s --by <name>"
+            % (gate.upper(), gate))
+    if args.pass_gate and gate in state.get("human_gates", []):
+        current_fingerprint = approval_fingerprint(gate, state)
+        if approval.get("fingerprint") != current_fingerprint:
+            die("%s approval is stale because approved artifacts changed; approve it again"
+                % gate.upper())
 
     r = gate_checks(gate, state)
     code = r.render("gate %s" % gate.upper())
@@ -1482,6 +2769,7 @@ def cmd_gate(args):
     if gate == "g0":
         h = sha256_of(os.path.join(LOOP_DIR, "0-plan/dod.md"))
         state["dod_hash"] = h
+        state["frozen_roles"] = list(enabled_roles(state))
         state["phase"] = 1
         state["cursor"] = "1.1 architecture"
         ledger("G0 passed. Definition of Done frozen at sha256 %s." % (h[:16] if h else "unknown"))
@@ -1513,12 +2801,96 @@ def cmd_gate(args):
 
 def cmd_block(args):
     state = require_state()
+    if state.get("status") != "ACTIVE":
+        die("only an ACTIVE loop can be blocked")
+    if not args.reason.strip():
+        die("blocking reason must not be blank")
     state["status"] = "BLOCKED"
-    state["blocked_reason"] = args.reason
+    state["blocked_reason"] = args.reason.strip()
     save_state(state)
     ledger("BLOCKED: %s\n\nOptions and recommendation belong here." % args.reason)
     print("Status set to BLOCKED.")
     print("Write the options and your recommendation into /loop-project/ledger.md, then stop.")
+    return 0
+
+
+def cmd_unblock(args):
+    state = require_state()
+    if state.get("status") != "BLOCKED":
+        die("the loop is not BLOCKED")
+    decision = args.decision.strip()
+    approver = args.by.strip()
+    if not decision or not approver:
+        die("--by and --decision must not be blank")
+    record = {
+        "by": approver,
+        "at": now(),
+        "decision": decision,
+        "previous_reason": state.get("blocked_reason"),
+    }
+    state.setdefault("unblocks", []).append(record)
+    state["status"] = "ACTIVE"
+    state["blocked_reason"] = None
+    save_state(state)
+    ledger("Loop unblocked by %s.\nDecision: %s\nPrevious block: %s"
+           % (approver, decision, record["previous_reason"] or "not recorded"))
+    print("Loop resumed by %s. The decision is recorded in loop.json and ledger.md." % approver)
+    print("Blocked tasks remain open until the Judge records REWORK or PASS.")
+    return 0
+
+
+def cmd_migrate(args):
+    """Explicitly attest legacy state that predates frozen rosters and Git baselines."""
+    state = require_state()
+    if state.get("status") != "ACTIVE":
+        die("legacy migration requires an ACTIVE loop")
+    approver = args.by.strip()
+    reason = args.reason.strip()
+    if not approver or not reason:
+        die("--by and --reason must not be blank")
+
+    migrated = []
+    if state.get("gates", {}).get("g0", {}).get("passed") and not state.get("frozen_roles"):
+        state["frozen_roles"] = list((state.get("roles") or {}).get("enabled") or CORE_ROLES)
+        migrated.append("approved role roster")
+
+    missing_baselines = [
+        tid for tid, task in state.get("tasks", {}).items()
+        if not git_commit_exists(task.get("base_sha"))
+    ]
+    if missing_baselines:
+        code, head, _ = git("rev-parse", "HEAD")
+        if code != 0 or not git_commit_exists(head.strip()):
+            die("legacy task migration requires a valid Git HEAD")
+        for tid in missing_baselines:
+            task = state["tasks"][tid]
+            task["base_sha"] = head.strip()
+            task["baseline_migrated_at"] = now()
+            task["baseline_migrated_by"] = approver
+            task["verdict"] = None
+            for field in ("result_sha", "result_fingerprint", "result_files",
+                          "mechanical_verification", "evidence_hashes",
+                          "verdict_at", "qa_file", "verdict_file", "rework_files"):
+                task.pop(field, None)
+        migrated.append("task baselines: %s" % ", ".join(sorted(missing_baselines)))
+
+    if not migrated:
+        die("this loop has no legacy roster or task baseline state to migrate")
+    record = {
+        "by": approver,
+        "at": now(),
+        "reason": reason,
+        "changes": migrated,
+    }
+    state.setdefault("migrations", []).append(record)
+    save_state(state)
+    ledger("Legacy state migration approved by %s.\nReason: %s\nChanges: %s"
+           % (approver, reason, "; ".join(migrated)))
+    print("Legacy loop state migrated by %s." % approver)
+    for change in migrated:
+        print("  - " + change)
+    print("Migrated task baselines accept the current Git HEAD as the new boundary; "
+          "those tasks must be re-verified.")
     return 0
 
 
@@ -1528,15 +2900,15 @@ def main():
     ap = argparse.ArgumentParser(prog="loop.py", description="Project Loop state machine")
     sub = ap.add_subparsers(dest="cmd")
 
-    p = sub.add_parser("init")
+    p = sub.add_parser("init", help="scaffold a new evidence workspace")
     p.add_argument("--brownfield", action="store_true")
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_init)
 
-    p = sub.add_parser("status")
+    p = sub.add_parser("status", help="show phase, gates, roles, and open tasks")
     p.set_defaults(fn=cmd_status)
 
-    p = sub.add_parser("roles")
+    p = sub.add_parser("roles", help="select the authority roster before G0")
     p.add_argument("--list", action="store_true", help="show the roster and what is enabled")
     p.add_argument("--recommend", action="store_true",
                    help="propose a set from the shape of this project")
@@ -1549,39 +2921,65 @@ def main():
                    help="accept the current set as a deliberate choice")
     p.set_defaults(fn=cmd_roles)
 
-    p = sub.add_parser("task")
+    p = sub.add_parser("task", help="create or list baseline-anchored tasks")
     p.add_argument("action", choices=["new", "list"])
     p.add_argument("title", nargs="?")
     p.set_defaults(fn=cmd_task)
 
-    p = sub.add_parser("reuse")
+    p = sub.add_parser("reuse", help="search the registry and tree before building")
     p.add_argument("query", help='what you are about to build, e.g. "currency format"')
     p.set_defaults(fn=cmd_reuse)
 
-    p = sub.add_parser("verify")
+    p = sub.add_parser("verify", help="run deterministic task evidence checks")
     p.add_argument("task")
     p.set_defaults(fn=cmd_verify)
 
-    p = sub.add_parser("cycle")
+    p = sub.add_parser("cycle", help="retired; use the evidence-bearing verdict command")
     p.add_argument("task")
-    p.add_argument("--finding", help="short stable label, to detect a recurring finding")
     p.set_defaults(fn=cmd_cycle)
 
-    p = sub.add_parser("gate")
-    p.add_argument("gate")
+    p = sub.add_parser("verdict", help="record PASS, REWORK, or BLOCKED with evidence")
+    p.add_argument("task")
+    p.add_argument("outcome", choices=["pass", "rework", "blocked"])
+    p.add_argument("--file", required=True, help="Judge verdict artifact")
+    p.add_argument("--qa", help="Tester QA artifact (required for PASS)")
+    p.add_argument("--order", action="append",
+                   help="rework order artifact; repeat once per order (required for REWORK)")
+    p.add_argument("--reason", help="decision the human must make (required for BLOCKED)")
+    p.set_defaults(fn=cmd_verdict)
+
+    p = sub.add_parser("gate", help="check or pass an ordered lifecycle gate")
+    p.add_argument("gate", choices=GATES)
     p.add_argument("--check", action="store_true")
     p.add_argument("--pass", dest="pass_gate", action="store_true")
     p.set_defaults(fn=cmd_gate)
 
-    p = sub.add_parser("block")
+    p = sub.add_parser("approve", help="bind a human identity to checked gate artifacts")
+    p.add_argument("gate", choices=GATES)
+    p.add_argument("--by", required=True, help="human approver name or stable identifier")
+    p.add_argument("--note", help="optional approval context")
+    p.set_defaults(fn=cmd_approve)
+
+    p = sub.add_parser("block", help="stop the loop with a specific decision need")
     p.add_argument("reason")
     p.set_defaults(fn=cmd_block)
+
+    p = sub.add_parser("unblock", help="resume after an attributed human decision")
+    p.add_argument("--by", required=True, help="human decision-maker name or stable identifier")
+    p.add_argument("--decision", required=True, help="decision that resolves the recorded block")
+    p.set_defaults(fn=cmd_unblock)
+
+    p = sub.add_parser("migrate", help="attest legacy role and task baselines")
+    p.add_argument("--by", required=True, help="human approver name or stable identifier")
+    p.add_argument("--reason", required=True, help="why the current legacy state is accepted")
+    p.set_defaults(fn=cmd_migrate)
 
     args = ap.parse_args()
     if not getattr(args, "fn", None):
         ap.print_help()
         return 2
-    return args.fn(args)
+    with project_lock():
+        return args.fn(args)
 
 
 if __name__ == "__main__":

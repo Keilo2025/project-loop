@@ -6,7 +6,42 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- A black-box lifecycle suite covering gate order, approvals, Git baselines, verdict evidence,
+  rework, blocking, recovery, secret scanning, security/UI/business evidence, tamper detection,
+  hostile Git filenames, path-confinement attacks, parallel state updates, and safe reset behaviour.
+  It now runs under
+  `npm test`, with Node 18/20/22 and Python 3.8/3.11/3.13 covered in CI.
+- Typed `approve`, `verdict pass|rework|blocked`, and `unblock` transitions. PASS requires valid
+  Worker, Tester, and Judge artifacts; REWORK requires schema-valid numbered orders; BLOCKED can
+  only be resumed by an attributed human decision.
+- An audited `migrate --by ... --reason ...` transition for legacy loops without frozen role
+  rosters or immutable task baselines.
+
+### Changed
+
+- Gates can only pass in order, tasks can only be created after G1, and G3 refuses an empty task
+  set.
+- Task verification compares the complete result against the Git SHA captured when the task was
+  created, parses filenames with NUL delimiters, fails closed without Git, and rejects edits to
+  pre-existing tests.
+- G3 scans the current project tree for credential assignments and reachable Git history for
+  strong token and private-key signatures, including secrets deleted by a later commit.
+- Task cards, Worker REPORTs, and Tester QA must carry exactly the same acceptance IDs. G3
+  independently revalidates their hashes, the stored mechanical receipt, frozen DoD coverage,
+  enabled Adversary/UI Critic/Product Owner evidence, and a SHA-256 snapshot of each task's exact
+  delivered paths instead of recomputing a moving task-to-current-tree delta.
+- The approved role roster is frozen at G0. State transitions are serialized with a project lock,
+  preventing optional-role bypasses and lost updates from parallel agents.
+- The evidence-free `cycle` transition is retired. Typed REWORK now enforces every cited order
+  artifact. Required `Finding-ID`, `Domain`, `DoD-impact`, and severity fields drive hard stops for
+  DoD changes, recurring findings, recurring Sev-1 security failures, and excessive task cycles;
+  changing a label cannot reset an already bound order or finding signature.
+- `init --force` archives the complete previous `loop-project` directory before creating a fresh
+  loop. The root and every owned evidence directory are realpath-confined, preventing stale
+  artifacts, root symlinks, nested evidence escapes, and changed source symlinks from crossing the
+  project boundary.
 
 ## [1.1.0] — 2026-07-26
 

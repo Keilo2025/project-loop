@@ -151,6 +151,9 @@ vague fixes and a second cycle.
 
 ```markdown
 ## R-012-01 — Sev-1 — Authorisation missing on GET /api/orders/:id
+Finding-ID: missing-order-authorization
+Domain: security
+DoD-impact: no
 Finding: The handler loads the order by id without checking ownership.
 Evidence: src/api/orders.ts:42-58 — no ownership check between lookup and response.
           QA-005-01 reproduces cross-account read.
@@ -161,11 +164,13 @@ Re-check: New integration test — user A requests user B's order id, expects 40
 Cause: code
 ```
 
-Each order carries: finding, evidence with file and line or a reproduction, the required change
-stated as an outcome rather than an implementation, the re-check that will close it, and the cause
-classification. Write the required change as an outcome — Judges that prescribe implementations
-end up designing, which is not their role and produces worse code than the Worker would have
-written.
+Each order carries a stable finding ID, domain, explicit DoD impact, finding, evidence with file and
+line or a reproduction, the required change stated as an outcome rather than an implementation, the
+re-check that will close it, and the cause classification. The state machine derives recurrence,
+security severity, and frozen-DoD stops from these validated fields; optional command-line labels
+cannot suppress a stop. Write the required change as an outcome — Judges that prescribe
+implementations end up designing, which is not their role and produces worse code than the Worker
+would have written.
 
 Send the orders back to a Worker with a read-set containing the order, the original task card, and
 `interfaces.md`. Nothing else. The Worker re-runs the task, updates the REPORT, and the cycle
@@ -175,8 +180,27 @@ repeats.
 
 ## 3.4 Loop control
 
-The Judge owns termination. Increment the cycle counter on every REWORK
-(`loop.py cycle TASK-###`).
+The Judge owns termination. Record the typed outcome through the state machine; do not edit
+`loop.json` by hand:
+
+```bash
+# PASS: all three independent evidence artifacts are required
+loop.py verdict TASK-### pass --qa loop-project/3-verify/qa/QA-###.md \
+  --file loop-project/3-verify/verdicts/V-###.md
+
+# REWORK: repeat --order for every numbered order
+loop.py verdict TASK-### rework --file loop-project/3-verify/verdicts/V-###.md \
+  --order loop-project/3-verify/rework/R-###-01.md
+
+# BLOCKED: state the decision the human must make
+loop.py verdict TASK-### blocked --file loop-project/3-verify/verdicts/V-###.md \
+  --reason "<specific decision needed>"
+```
+
+REWORK increments the task cycle counter atomically with recording its verdict and evidence. Every
+order cited by the Judge must have exactly one schema-valid artifact with `Finding-ID`, `Domain`,
+`DoD-impact`, severity, evidence, required outcome, re-check, and cause. The old `loop.py cycle`
+command is retired because it advanced state without verdict evidence.
 
 **Stop conditions, all hard:**
 
@@ -213,6 +237,19 @@ The whole-project gate. Reached only when every task has a `PASS` verdict.
 
 `python3 scripts/loop.py gate g3 --check` runs the mechanical subset. When all of it clears:
 `loop.py gate g3 --pass`.
+
+G3 does not trust the `PASS` string in `loop.json`. It independently validates every task's Worker
+task card, REPORT, Tester QA, and Judge verdict, and compares each artifact to the SHA-256 captured
+when PASS was recorded. The task, REPORT, and QA must name exactly the same `AC-###` set. It checks
+the stored mechanical-verification receipt, every frozen DoD acceptance row's independent passing
+QA coverage, and the SHA-256 snapshot of the exact paths delivered by that task. This immutable
+per-task boundary includes relevant file mode bits and lets a later task change unrelated files
+without invalidating an earlier PASS. G3 also compares every final Git delta to the union of PASS
+manifests; a path owned by no passing task blocks closure.
+When the Adversary or UI Critic is enabled, every task needs a schema-valid `SEC-###` or `UI-###`
+report respectively. An enabled Product Owner needs a `PO-###` PASS that names a `BR-###` and
+records observed outcome evidence. Missing, moved, edited, placeholder, path-escaped, or forged
+evidence blocks closure.
 
 Then, and only then, tell the human the loop is closed. Report what was built, what was
 deliberately not built (the `Won't` list from the BRD, plus anything deferred), where the evidence

@@ -71,7 +71,9 @@ Searched: "receipt thumbnail" — nothing suitable; the existing <Avatar> is cir
 An empty Reuse section on a task that created new files reads as "did not look," and Judges treat
 it that way.
 
-**Acceptance.** A table, one row per `AC-###` the task claims to close.
+**Acceptance.** A table containing exactly the concrete `AC-###` set on the task card: no missing
+rows, extras, or duplicates. Independent Tester QA must repeat that exact set and mark each row
+`pass` before the task can receive PASS.
 
 | AC | Proven by | Result |
 |----|-----------|--------|
@@ -79,7 +81,7 @@ it that way.
 | AC-005 | manual: measured with Lighthouse, LCP 1.2s | pass |
 
 "Proven by" must name something re-runnable. "Verified manually" without a procedure is not proof
-and will be rejected at check 4.
+and will be rejected at acceptance check 5.
 
 **Assumptions.** Anything you inferred rather than read in the spec. This is the section that
 prevents the most rework, because an assumption surfaced here costs one line and an assumption
