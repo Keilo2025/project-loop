@@ -12,3 +12,6 @@ npm-debug.log*
 package-lock.json
 
 # /loop-project is deliberately NOT ignored — it is the audit trail and it should be committed.
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
